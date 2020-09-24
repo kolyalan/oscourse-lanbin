@@ -113,9 +113,24 @@ InitGraphics (
   //
   // Hint: Use GetMode/SetMode functions.
   //
+  UINT32 DefinedWidth = 1920U;
+  UINT32 DefinedHeight = 1080U;
+  UINT32 ModeNumber = 0;
+  UINTN *ModeInfoSize = 0;
+  EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *ModeInfo;
+
+  for (int i = 1; i < GraphicsOutput->Mode->MaxMode; ++i) {
+    GraphicsOutput->QueryMode(GraphicsOutput, i, ModeInfoSize, &ModeInfo);
+    if ( ModeInfo->HorizontalResolution <= DefinedWidth
+      && ModeInfo->VerticalResolution <= DefinedHeight) {
+      ModeNumber = i;
+      break;
+    }
+  }
+ 
   GraphicsOutput->SetMode (
     GraphicsOutput,
-    22
+    ModeNumber
     );
   //
   // Fill screen with black.
