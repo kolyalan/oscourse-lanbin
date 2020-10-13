@@ -7,12 +7,27 @@ void
 rtc_init(void) {
   nmi_disable();
   // LAB 4: Your code here
+
+  uint8_t A, B;
+
+  outb(IO_RTC_CMND, RTC_AREG);
+  A = inb(IO_RTC_DATA);
+  A |= 0xF;
+  outb(IO_RTC_DATA, A);
+
+  outb(IO_RTC_CMND, RTC_BREG);
+  B = inb(IO_RTC_DATA);
+  B |= RTC_PIE;
+  outb(IO_RTC_DATA, B);
+
+	nmi_enable();
 }
 
 uint8_t
 rtc_check_status(void) {
   uint8_t status = 0;
   // LAB 4: Your code here
-
+  outb(IO_RTC_CMND, RTC_CREG);
+  status = inb(IO_RTC_DATA);
   return status;
 }
