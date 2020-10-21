@@ -16,6 +16,11 @@ int mon_help(int argc, char **argv, struct Trapframe *tf);
 int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
 int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
 int mon_hello(int argc, char **argv, struct Trapframe *tf);
+<<<<<<< HEAD
 int mon_name(int argc, char **argv, struct Trapframe *tf);
+int mon_start(int argc, char **argv, struct Trapframe *tf);
+int mon_stop(int argc, char **argv, struct Trapframe *tf);
+int mon_frequency(int argc, char **argv, struct Trapframe *tf);
+>>>>>>> lab5
 
 #endif // !JOS_KERN_MONITOR_H
