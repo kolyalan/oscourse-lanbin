@@ -126,6 +126,9 @@ i386_init(void) {
     ctor++;
   }
 
+  pic_init();
+  rtc_init();
+
   timers_init();
 
   // Framebuffer init should be done after memory init.

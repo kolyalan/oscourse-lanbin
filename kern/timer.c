@@ -104,18 +104,71 @@ get_rsdp(void) {
   return krsdp;
 }
 
+static void * acpi_find_table(const char * sign) {
+  static RSDT * krsdt;
+  static size_t krsdt_len;
+  static size_t krsdt_entsz;
+
+  if (!krsdt) {
+    if (!uefi_lp->ACPIRoot) {
+      panic("No rsdp\n");
+    }
+    RSDP * krsdp = get_rsdp();
+ 
+    uint64_t rsdt_pa;
+    if (krsdp->Revision) {
+      /* ACPI version >= 2.0 */
+      rsdt_pa = krsdp->XsdtAddress;
+      krsdt_entsz = 8;
+    }
+    else {
+      rsdt_pa = krsdp->RsdtAddress;
+      krsdt_entsz = 4;
+    }
+    //Перед тем как обращаться по адресу, мы берем физический адрес 
+    //и отображаем его в некоторый виртуальный адрес в пространстве ядра
+    krsdt = mmio_map_region(rsdt_pa, sizeof(RSDT));
+    //мы можем узнать длину региона только из его заголовка
+    krsdt = mmio_map_region(rsdt_pa, krsdt->h.Length);
+
+    krsdt_len = (krsdt->h.Length - sizeof(RSDT)) / krsdt_entsz; // количество записей в rsdt(xsdt)
+  }
+
+  ACPISDTHeader * hd = NULL;
+  for (size_t i = 0; i < krsdt_len; i++) {
+    //получение адреса
+    uint64_t fadt_pa = 0;
+
+    memcpy(&fadt_pa, (uint8_t *)krsdt->PointerToOtherSDT + i*krsdt_entsz, krsdt_entsz);
+    hd = mmio_map_region(fadt_pa, sizeof(ACPISDTHeader));
+    hd = mmio_map_region(fadt_pa, hd->Length);
+
+    if (!strncmp(hd->Signature, sign, 4)) return hd;
+  }
+
+  return NULL;
+}
+
 // LAB 5: Your code here.
 // Obtain and map FADT ACPI table address.
 FADT *
 get_fadt(void) {
-  return NULL;
+  static FADT *kfadt;
+  if (!kfadt) {
+    kfadt = acpi_find_table("FACP");
+  }
+  return kfadt;
 }
 
 // LAB 5: Your code here.
 // Obtain and map RSDP ACPI table address.
 HPET *
 get_hpet(void) {
-  return NULL;
+  static HPET *khpet;
+  if (!khpet) {
+    khpet = acpi_find_table("HPET");
+  }
+  return khpet;
 }
 
 // Getting physical HPET timer address from its table.
@@ -212,12 +265,27 @@ hpet_get_main_cnt(void) {
 // Hint: to be able to use HPET as PIT replacement consult
 // LegacyReplacement functionality in HPET spec.
 
+#define TN_INT_TYPE_CNF (1 << 1)
+#define TN_INT_ENB_CNF (1 << 2)
+#define TN_TYPE_CNF (1 << 3)
+#define TN_VAL_SET_CNF (1 << 6)
+
 void
 hpet_enable_interrupts_tim0(void) {
+  hpetReg->GEN_CONF |= TN_INT_TYPE_CNF;
+  hpetReg->TIM0_CONF = (IRQ_TIMER << 9) | TN_TYPE_CNF | TN_INT_ENB_CNF | TN_VAL_SET_CNF;
+  //hpetReg->TIM0_COMP = hpet_get_main_cnt() + Peta / 2 / hpetFemto; //0.5 sek
+  hpetReg->TIM0_COMP = Peta / 2 / hpetFemto;
+  irq_setmask_8259A(irq_mask_8259A & ~(1 << IRQ_TIMER));
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
+  hpetReg->GEN_CONF |= TN_INT_TYPE_CNF;
+  hpetReg->TIM1_CONF = (IRQ_CLOCK << 9) | TN_TYPE_CNF | TN_INT_ENB_CNF | TN_VAL_SET_CNF;
+  //hpetReg->TIM1_COMP = hpet_get_main_cnt() + 3 * Peta / 2 / hpetFemto; //1.5 sek
+  hpetReg->TIM1_COMP = 3 * Peta / 2 / hpetFemto;
+  irq_setmask_8259A(irq_mask_8259A & ~(1 << IRQ_CLOCK));
 }
 
 void
@@ -236,7 +304,19 @@ hpet_handle_interrupts_tim1(void) {
 // about pause instruction.
 uint64_t
 hpet_cpu_frequency(void) {
-  return 0;
+  uint64_t time_res = 100;
+  uint64_t delta = 0, target = hpetFreq / time_res;
+
+  uint64_t tick0 = hpet_get_main_cnt();
+  uint64_t tsc0 = read_tsc();
+  do {
+    asm("pause");
+    delta = hpet_get_main_cnt() - tick0;
+  } while (delta < target);
+
+  uint64_t tsc1 = read_tsc();
+
+  return (tsc1 - tsc0) * time_res; 
 }
 
 uint32_t
@@ -253,5 +333,25 @@ pmtimer_get_timeval(void) {
 // can be 24-bit or 32-bit.
 uint64_t
 pmtimer_cpu_frequency(void) {
+  uint32_t time_res = 100;
+  uint32_t tick0 = pmtimer_get_timeval();
+  uint64_t delta = 0, target = PM_FREQ / time_res;
+
+  uint64_t tsc0 = read_tsc();
+
+  do {
+    asm("pause");
+    uint32_t tick1 = pmtimer_get_timeval();
+    delta = tick1 - tick0;
+    if (-delta <= 0xFFFFFF) {
+      delta += 0xFFFFFF;
+    } else if (tick0 > tick1) {
+      delta += 0xFFFFFFFF;
+    }
+  } while (delta < target);
+
+  uint64_t tsc1 = read_tsc();
+
+  return (tsc1 - tsc0) * PM_FREQ / delta;
   return 0;
 }
