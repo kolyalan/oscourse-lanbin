@@ -275,7 +275,7 @@ bind_functions(struct Env *e, uint8_t *binary) {
     }
   }
 }
-#endif
+
 
 //
 // Set up the initial program binary, stack, and processor flags
@@ -333,7 +333,7 @@ load_icode(struct Env *e, uint8_t *binary) {
     e->env_tf.tf_rip = elf->e_entry;
     bind_functions(e, binary);
   }
-}
+} 
 
 //
 // Allocates a new env with env_alloc, loads the named elf
@@ -352,7 +352,8 @@ env_create(uint8_t *binary, enum EnvType type) {
   }
   env->env_type = type;
   load_icode(env, binary);
-}
+} 
+#endif
 
 //
 // Frees env e and all memory it uses.

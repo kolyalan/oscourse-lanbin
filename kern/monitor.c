@@ -38,6 +38,7 @@ static struct Command commands[] = {
     {"timer_start", "Start timer", mon_start},
     {"timer_stop", "Stop timer and display time", mon_stop},
     {"timer_freq", "Display timer frequency", mon_frequency},
+    {"memory", "Displays a list of all physical pages", mon_memory}
     };
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
@@ -105,7 +106,6 @@ mon_name(int argc, char **argv, struct Trapframe *tf) {
 // LAB 5: Your code here.
 // Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands.
 
-<<<<<<< HEAD
 int
 mon_start(int argc, char **argv, struct Trapframe *tf) {
   if (argc < 2) {
@@ -129,12 +129,45 @@ mon_frequency(int argc, char **argv, struct Trapframe *tf) {
   timer_cpu_frequency(argv[1]);
   return 0;
 }
-=======
 // LAB 6: Your code here.
 // Implement memory (mon_memory) commands.
+int
+mon_memory(int argc, char **argv, struct Trapframe *tf) {
+  bool allocated = true;
+  size_t first = 0;
+  for (size_t i = 0; i < npages; ++i) {
+    if (!pages[i].pp_ref && allocated) {
+      if (first != i - 1) {
+        cprintf("%ld..", first);
+      }
+      cprintf("%ld ALLOCATED\n", i);
+      first = i + 1;
+      allocated = false;
+    }
+    else if (pages[i].pp_ref && !allocated) {
+      if (first != i - 1) {
+        cprintf("%ld..", first);
+      }
+      cprintf("%ld FREE\n", i);
+      first = i + 1;
+      allocated = true;
+    }
+  }
+  if(allocated) {
+    if (first != npages - 1) {
+      cprintf("%ld..", first);
+    }
+    cprintf("%ld ALLOCATED\n", npages);
+  }
+  else {
+    if (first != npages - 1) {
+      cprintf("%ld..", first);
+    }
+    cprintf("%ld FREE\n", npages);
+  }
+  return 0;
+}
 
-
->>>>>>> lab6
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "

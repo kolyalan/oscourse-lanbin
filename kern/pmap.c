@@ -171,8 +171,16 @@ boot_alloc(uint32_t n) {
   //
   // LAB 6: Your code here.
 
-  (void)nextfree;
-  return NULL;
+  extern char end[];
+  if (!nextfree) {
+    nextfree = ROUNDUP((char *)end, PGSIZE);;
+  }
+  char *kern_addr = nextfree;
+  if (PADDR(nextfree + ROUNDUP(n, PGSIZE)) > PGSIZE * npages) {
+    panic("Out of memory!");
+  }
+  nextfree += ROUNDUP(n, PGSIZE);
+  return kern_addr;
 }
 
 // Set up a two-level page table:
@@ -216,6 +224,8 @@ mem_init(void) {
   // array.  'npages' is the number of physical pages in memory.  Use memset
   // to initialize all fields of each struct PageInfo to 0.
   // LAB 6: Your code here.
+  pages = boot_alloc(npages * sizeof(struct PageInfo));
+  memset(pages, 0, npages * sizeof(struct PageInfo));
 
   //////////////////////////////////////////////////////////////////////
   // Now that we've allocated the initial kernel data structures, we set
@@ -303,21 +313,21 @@ page_init(void) {
   struct PageInfo *last = NULL;
 
   //Mark physical page 0 as in use.
-  pages[0].pp_ref  = 1;
+  pages[0].pp_ref = 1;
   pages[0].pp_link = NULL;
 
   //  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
   //     is free.
-  pages[2].pp_ref = 0;
-  page_free_list  = &pages[2];
-  last            = &pages[2];
-  for (i = 2; i < npages_basemem; i++) {
+  pages[1].pp_ref = 0;
+  page_free_list = &pages[1];
+  last = &pages[1];
+  for (i = 1; i < npages_basemem; i++) {
     if (is_page_allocatable(i)) {
       pages[i].pp_ref = 0;
-      last->pp_link   = &pages[i];
-      last            = &pages[i];
+      last->pp_link = &pages[i];
+      last = &pages[i];
     } else {
-      pages[i].pp_ref  = 1;
+      pages[i].pp_ref = 1;
       pages[i].pp_link = NULL;
     }
   }
@@ -336,10 +346,10 @@ page_init(void) {
   for (i = first_free_page; i < npages; i++) {
     if (is_page_allocatable(i)) {
       pages[i].pp_ref = 0;
-      last->pp_link   = &pages[i];
-      last            = &pages[i];
+      last->pp_link = &pages[i];
+      last = &pages[i];
     } else {
-      pages[i].pp_ref  = 1;
+      pages[i].pp_ref = 1;
       pages[i].pp_link = NULL;
     }
   }
@@ -363,8 +373,8 @@ page_alloc(int alloc_flags) {
     return NULL;
   }
   struct PageInfo *return_page = page_free_list;
-  page_free_list               = page_free_list->pp_link;
-  return_page->pp_link         = NULL;
+  page_free_list = page_free_list->pp_link;
+  return_page->pp_link = NULL;
 
   if (!page_free_list) {
     page_free_list_top = NULL;
@@ -403,7 +413,7 @@ page_free(struct PageInfo *pp) {
   if (pp->pp_ref != 0 || pp->pp_link != NULL)
     panic("page_free: Page cannot be freed!\n");
 
-  pp->pp_link    = page_free_list;
+  pp->pp_link = page_free_list;
   page_free_list = pp;
   if (!page_free_list_top) {
     page_free_list_top = pp;

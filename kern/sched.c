@@ -28,7 +28,7 @@ sched_yield(void) {
   if (curenv) {
     id = ENVX(curenv_getid());
   } else {
-    id = -1;
+    id = 0;
   }
   int orig = id;
   do {
