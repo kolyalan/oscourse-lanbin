@@ -260,7 +260,7 @@ mem_init(void) {
   //      (ie. perm = PTE_U | PTE_P)
   //    - pages itself -- kernel RW, user NONE
   // LAB 7: Your code goes here:
-
+  boot_map_region(kern_pml4e, UPAGES, ROUNDUP(npages * sizeof(*pages), PGSIZE), PADDR(pages), PTE_U | PTE_P);
   //////////////////////////////////////////////////////////////////////
   // Use the physical memory that 'bootstack' refers to as the kernel
   // stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -272,6 +272,7 @@ mem_init(void) {
   //       overwrite memory.  Known as a "guard page".
   //     Permissions: kernel RW, user NONE
   // LAB 7: Your code goes here:
+   boot_map_region(kern_pml4e, KSTACKTOP - KSTKSIZE, KSTACKTOP - (KSTACKTOP - KSTKSIZE), PADDR(bootstack), PTE_W | PTE_P);
 
   // Additionally map stack to lower 32-bit addresses.
   boot_map_region(kern_pml4e, X86ADDR(KSTACKTOP - KSTKSIZE), KSTKSIZE, PADDR(bootstack), PTE_P | PTE_W);
@@ -284,6 +285,7 @@ mem_init(void) {
   // we just set up the mapping anyway.
   // Permissions: kernel RW, user NONE
   // LAB 7: Your code goes here:
+  boot_map_region(kern_pml4e, KERNBASE, npages * PGSIZE, 0, PTE_P | PTE_W);
 
   // Additionally map kernel to lower 32-bit addresses. Assumes kernel should not exceed 50 mb.
   size_to_alloc = MIN(0x3200000, npages * PGSIZE);
@@ -562,18 +564,51 @@ page_decref(struct PageInfo *pp) {
 pte_t *
 pml4e_walk(pml4e_t *pml4e, const void *va, int create) {
   // LAB 7: Fill this function in
+  if (pml4e[PML4(va)] & PTE_P) {
+    return pdpe_walk((pte_t *)KADDR(PTE_ADDR(pml4e[PML4(va)])), va, create);
+  }
+  if (create) {
+    struct PageInfo *pp = page_alloc(ALLOC_ZERO);
+    if (pp) {
+      ++pp->pp_ref;
+      pml4e[PML4(va)] = page2pa(pp) | PTE_P | PTE_U | PTE_W;
+      return pdpe_walk((pte_t *)KADDR(PTE_ADDR(pml4e[PML4(va)])), va, create);
+    }
+  }
   return NULL;
 }
 
 pte_t *
 pdpe_walk(pdpe_t *pdpe, const void *va, int create) {
   // LAB 7: Fill this function in
+  if (pdpe[PDPE(va)] & PTE_P) {
+    return pgdir_walk((pte_t *)KADDR(PTE_ADDR(pdpe[PDPE(va)])), va, create);
+  }
+  if (create) {
+    struct PageInfo *pp = page_alloc(ALLOC_ZERO);
+    if (pp) {
+      ++pp->pp_ref;
+      pdpe[PDPE(va)] = page2pa(pp) | PTE_P | PTE_U | PTE_W;
+      return pgdir_walk((pte_t *)KADDR(PTE_ADDR(pdpe[PDPE(va)])), va, create);
+    }
+  }
   return NULL;
 }
 
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create) {
   // LAB 7: Fill this function in
+  if (pgdir[PDX(va)] & PTE_P) {
+    return (pte_t *)KADDR(PTE_ADDR(pgdir[PDX(va)])) + PTX(va);
+  }
+  if (create) {
+    struct PageInfo *pp = page_alloc(ALLOC_ZERO);
+    if (pp) {
+      ++pp->pp_ref;
+      pgdir[PDX(va)] = page2pa(pp) | PTE_P | PTE_U | PTE_W;
+      return (pte_t *)page2kva(pp) + PTX(va);
+    }
+  }   
   return NULL;
 }
 
@@ -591,6 +626,9 @@ pgdir_walk(pde_t *pgdir, const void *va, int create) {
 static void
 boot_map_region(pml4e_t *pml4e, uintptr_t va, size_t size, physaddr_t pa, int perm) {
   // LAB 7: Fill this function in
+  for (int i = 0; i < size; i += PGSIZE) {
+    *pml4e_walk(pml4e, (void *)(va + i), 1) = (pa + i) | perm | PTE_P;
+  }
 }
 
 //
@@ -621,6 +659,24 @@ boot_map_region(pml4e_t *pml4e, uintptr_t va, size_t size, physaddr_t pa, int pe
 int
 page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm) {
   // LAB 7: Fill this function in
+  pte_t *ptep = pml4e_walk(pml4e, va, 1);
+  if (!ptep) {
+    return -E_NO_MEM;
+  }
+
+  if (*ptep & PTE_P) {
+    if (PTE_ADDR(*ptep) == page2pa(pp)) {
+      *ptep = PTE_ADDR(*ptep) | perm | PTE_P;
+    } else {
+      page_remove(pml4e, va);
+      *ptep = page2pa(pp) | perm | PTE_P;
+      ++pp->pp_ref;
+      tlb_invalidate(pml4e, va);
+    }
+  } else {
+    *ptep = page2pa(pp) | perm | PTE_P;
+    ++pp->pp_ref;
+  }
   return 0;
 }
 
@@ -638,6 +694,13 @@ page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm) {
 struct PageInfo *
 page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store) {
   // LAB 7: Fill this function in
+  pte_t *ptep = pml4e_walk(pml4e, va, 0);
+  if (ptep) {
+    if (pte_store) {
+      *pte_store = ptep;
+    }
+    return pa2page(PTE_ADDR(*ptep));
+  }
   return NULL;
 }
 
@@ -659,6 +722,13 @@ page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store) {
 void
 page_remove(pml4e_t *pml4e, void *va) {
   // LAB 7: Fill this function in
+  pte_t *ptep;
+  struct PageInfo *pp = page_lookup(pml4e, va, &ptep);
+  if (pp) {
+    page_decref(pp);
+    *ptep = 0;
+    tlb_invalidate(pml4e, va);
+  }
 }
 
 //
