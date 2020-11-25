@@ -201,6 +201,13 @@ env_setup_vm(struct Env *e) {
   //    - The functions in kern/pmap.h are handy.
 
   // LAB 8: Your code here.
+  e->env_pml4e = page2kva(p);
+  e->env_cr3 = page2pa(p);
+
+  e->env_pml4e[1] = kern_pml4e[1];
+  pa2page(PTE_ADDR(kern_pml4e[1]))->pp_ref++;
+
+  e->env_pml4e[2] = e->env_cr3 | PTE_P | PTE_U;
 
   return 0;
 }
@@ -305,6 +312,14 @@ region_alloc(struct Env *e, void *va, size_t len) {
   //   'va' and 'len' values that are not page-aligned.
   //   You should round va down, and round (va + len) up.
   //   (Watch out for corner-cases!)
+  void *end = ROUNDUP(va + len, PGSIZE);
+  va = ROUNDDOWN(va, PGSIZE);
+  struct PageInfo *pi;
+  while (va < end) {
+    pi = page_alloc(0);
+    page_insert(e->env_pml4e, pi, va, PTE_U | PTE_W);
+    va += PGSIZE;
+  }
 }
 
 #ifdef SANITIZE_USER_SHADOW_BASE
@@ -448,12 +463,13 @@ load_icode(struct Env *e, uint8_t *binary) {
       memcpy((void *)ph[i].p_va, binary + ph[i].p_offset, filesz);
       memset((void *)(ph[i].p_va + filesz), 0, ph[i].p_memsz - filesz);
     }
-    e->env_tf.tf_rip = elf->e_entry;
-    bind_functions(e, binary);
   }
+  lcr3(PADDR(kern_pml4e));
+  e->env_tf.tf_rip = elf->e_entry;
+  bind_functions(e, binary);
 } 
   // LAB 8: Your code here.
-
+  region_alloc(e, (void *)(USTACKTOP - USTACKSIZE), USTACKSIZE);
 }
 
 //
@@ -702,7 +718,9 @@ env_run(struct Env *e) {
   curenv = e;
   curenv->env_status = ENV_RUNNING;
   ++curenv->env_runs;
-  env_pop_tf(&curenv->env_tf);
   // LAB 8: Your code here.
+  lcr3(curenv->env_cr3);
+  
+  env_pop_tf(&curenv->env_tf);
   while(1) {}
 }
