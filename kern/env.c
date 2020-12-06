@@ -397,7 +397,7 @@ bind_functions(struct Env *e, uint8_t *binary) {
     }
   }
 }
-
+#endif
 
 //
 // Set up the initial program binary, stack, and processor flags
@@ -457,17 +457,25 @@ load_icode(struct Env *e, uint8_t *binary) {
     panic("load_icode: invalid elf header");
   }
   struct Proghdr *ph = (struct Proghdr *)(binary + elf->e_phoff);
+  lcr3(PADDR(e->env_pml4e));
   for (int i = 0; i < elf->e_phnum; ++i) {
     if (ph[i].p_type == ELF_PROG_LOAD) {
-      UINT64 filesz = ph[i].p_filesz < ph[i].p_memsz ? ph[i].p_filesz : ph[i].p_memsz;
-      memcpy((void *)ph[i].p_va, binary + ph[i].p_offset, filesz);
-      memset((void *)(ph[i].p_va + filesz), 0, ph[i].p_memsz - filesz);
+      void *src = (void *)(binary + ph[i].p_offset);
+      void *dst = (void *)ph[i].p_va;
+
+      size_t memsz  = ph[i].p_memsz;
+      size_t filesz = MIN(ph[i].p_filesz, memsz);
+
+      region_alloc(e, (void*) dst, memsz);
+      memcpy(dst, src, filesz); 
+      memset(dst + filesz, 0, memsz - filesz);
     }
   }
   lcr3(PADDR(kern_pml4e));
   e->env_tf.tf_rip = elf->e_entry;
-  bind_functions(e, binary);
-} 
+  #ifdef CONFIG_KSPACE
+  bind_functions(e, binary); 
+  #endif
   // LAB 8: Your code here.
   region_alloc(e, (void *)(USTACKTOP - USTACKSIZE), USTACKSIZE);
 }
@@ -490,7 +498,6 @@ env_create(uint8_t *binary, enum EnvType type) {
   env->env_type = type;
   load_icode(env, binary);
 } 
-#endif
 
 //
 // Frees env e and all memory it uses.

@@ -580,7 +580,7 @@ pte_t *
 pml4e_walk(pml4e_t *pml4e, const void *va, int create) {
   // LAB 7: Fill this function in
   if (pml4e[PML4(va)] & PTE_P) {
-    return pdpe_walk((pte_t *)KADDR(PTE_ADDR(pml4e[PML4(va)])), va, create);
+    return pdpe_walk((pdpe_t *)KADDR(PTE_ADDR(pml4e[PML4(va)])), va, create);
   }
   if (create) {
     struct PageInfo *pp = page_alloc(ALLOC_ZERO);
@@ -757,6 +757,7 @@ tlb_invalidate(pml4e_t *pml4e, void *va) {
     invlpg(va);
 }
 
+static uintptr_t base = MMIOBASE;
 //
 // Reserve size bytes in the MMIO region and map [pa,pa+size) at this
 // location.  Return the base of the reserved region.  size does *not*
@@ -768,7 +769,6 @@ mmio_map_region(physaddr_t pa, size_t size) {
   // beginning of the MMIO region.  Because this is static, its
   // value will be preserved between calls to mmio_map_region
   // (just like nextfree in boot_alloc).
-  static uintptr_t base = MMIOBASE;
 
   // Reserve size bytes of virtual memory starting at base and
   // map physical pages [pa,pa+size) to virtual addresses
@@ -788,9 +788,27 @@ mmio_map_region(physaddr_t pa, size_t size) {
   // Hint: The staff solution uses boot_map_region.
   //
   // LAB 6: Your code here:
+  uintptr_t pa2 = ROUNDDOWN(pa, PGSIZE);
+  if (base + size >= MMIOLIM) {
+    panic("Allocated MMIO addr is too high! [0x%016lu;0x%016lu]",pa, pa+size);
+  }
 
-  (void)base;
-  return NULL;
+  size = ROUNDUP(size + (pa - pa2 ), PGSIZE);
+  boot_map_region(kern_pml4e, base, size, pa2, PTE_PCD | PTE_PWT | PTE_W);
+
+  void * new = (void *) base;
+  base += size;
+  return new;
+}
+
+void *
+mmio_remap_last_region(physaddr_t pa, void *addr, size_t oldsize, size_t newsize) {
+
+  oldsize = ROUNDUP((uintptr_t)addr + oldsize, PGSIZE) - (uintptr_t)addr;
+  if (base - oldsize != (uintptr_t)addr)
+    panic("You dare to remap non-last region?!");
+  base = (uintptr_t)addr;
+  return mmio_map_region(pa, newsize);
 }
 
 static uintptr_t user_mem_check_addr;
@@ -816,7 +834,21 @@ static uintptr_t user_mem_check_addr;
 int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
   // LAB 8: Your code here.
-
+  const void *end = va + len;
+  const void *vfirst = va;
+  va = ROUNDDOWN(va, PGSIZE);
+  while (va < end) {
+    pte_t *pte = pml4e_walk(env->env_pml4e, va, 0);
+    if (!pte || (*pte & (perm | PTE_P)) != (perm | PTE_P)) {
+      user_mem_check_addr = (uintptr_t)(va > vfirst ? va : vfirst);
+      return -E_FAULT;
+    }
+    va += PGSIZE;
+  }
+  if ((uintptr_t)end > ULIM) {
+    user_mem_check_addr = (uintptr_t)(end > vfirst ? end : vfirst);
+      return -E_FAULT;
+  }
   return 0;
 }
 

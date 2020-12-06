@@ -135,8 +135,8 @@ i386_init(void) {
     ctor++;
   }
 
-  pic_init();
-  rtc_init();
+  //pic_init();
+  //rtc_init();
 #ifdef SANITIZE_SHADOW_BASE
   kasan_mem_init();
 #endif
