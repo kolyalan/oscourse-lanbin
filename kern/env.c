@@ -483,9 +483,7 @@ load_icode(struct Env *e, uint8_t *binary) {
   bind_functions(e, binary); 
   #endif
   // LAB 8: Your code here.
-<<<<<<< HEAD
   region_alloc(e, (void *)(USTACKTOP - USTACKSIZE), USTACKSIZE);
-=======
 
   // LAB 8: One more hint for implementing sanitizers.
 #ifdef SANITIZE_USER_SHADOW_BASE
@@ -499,7 +497,6 @@ load_icode(struct Env *e, uint8_t *binary) {
   cprintf("Allocating shadow vpt %p:%p\n", (void *)(SANITIZE_USER_VPT_SHADOW_BASE), (void *)(SANITIZE_USER_VPT_SHADOW_BASE + SANITIZE_USER_VPT_SHADOW_SIZE));
   uvpt_shadow_map(e);
 #endif
->>>>>>> lab9
 }
 
 //

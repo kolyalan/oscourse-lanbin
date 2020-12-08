@@ -299,7 +299,6 @@ page_fault_handler(struct Trapframe *tf) {
   // Handle kernel-mode page faults.
 
   // LAB 8: Your code here.
-<<<<<<< HEAD
   cprintf(".%08x. user fault va %08lx ip %08lx\n", 
     curenv->env_id, fault_va, tf->tf_rip);
   print_trapframe(tf);
@@ -308,11 +307,9 @@ page_fault_handler(struct Trapframe *tf) {
   } else {
     env_destroy(curenv);
   }
-=======
 
   // We've already handled kernel-mode exceptions, so if we get here,
   // the page fault happened in user mode.
->>>>>>> lab9
 
   // Call the environment's page fault upcall, if one exists.  Set up a
   // page fault stack frame on the user exception stack (below
