@@ -23,6 +23,13 @@ pgfault(struct UTrapframe *utf) {
   //   (see <inc/memlayout.h>).
 
   // LAB 9: Your code here.
+  void *addr = (void *) utf->utf_fault_va;
+  uint64_t err = utf->utf_err;
+  int r;
+
+  if (!((err & FEC_WR) && (uvpt[PGNUM(addr)] & PTE_COW))) {
+    panic("Not a WR or not a COW page! va: %lx err: %lx\n", (uint64_t)addr, err);
+  }
 
   // Allocate a new page, map it at a temporary location (PFTEMP),
   // copy the data from the old page to the new page, then move the new
@@ -33,6 +40,22 @@ pgfault(struct UTrapframe *utf) {
   //   Make sure you DO NOT use sanitized memcpy/memset routines when using UASAN.
 
   // LAB 9: Your code here.
+  if ((r = sys_page_alloc(0, (void *) PFTEMP, PTE_W)) < 0) {
+    panic("pgfault error: sys_page_alloc: %i\n", r);
+  }
+
+  #ifdef SANITIZE_USER_SHADOW_BASE 
+    __nosan_memcpy((void *) PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+  #else
+    memmove((void *) PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+  #endif
+
+  if ((r = sys_page_map(0, (void *) PFTEMP, 0, ROUNDDOWN(addr, PGSIZE), PTE_P | PTE_U | PTE_W)) < 0) {
+    panic("pgfault error: sys_page_map: %i\n", r);
+  }
+  if ((r = sys_page_unmap(0, (void *) PFTEMP)) < 0) {
+    panic("pgfault error: sys_page_unmap: %i\n", r);
+  }
 }
 
 //
@@ -49,8 +72,22 @@ pgfault(struct UTrapframe *utf) {
 static int
 duppage(envid_t envid, unsigned pn) {
   // LAB 9: Your code here.
+  pte_t ent = uvpt[pn] & PTE_SYSCALL;
+  int r;
+  envid_t id = sys_getenvid();
 
-  return 0;
+  if (ent & (PTE_W | PTE_COW)) {
+    ent = (ent | PTE_COW) & ~PTE_W;
+    r = sys_page_map(id, (void *)(pn * PGSIZE), envid, (void *)(pn * PGSIZE), ent);
+    if (r < 0) {
+      return r;
+    }
+    r = sys_page_map(id, (void *)(pn * PGSIZE), id, (void *)(pn * PGSIZE), ent);
+  } else {
+    r = sys_page_map(id, (void *)(pn * PGSIZE), envid, (void *)(pn * PGSIZE), ent);
+  }
+  
+  return r;
 }
 
 //
@@ -75,7 +112,42 @@ fork(void) {
 
   // Duplicating shadow addresses is insane. Make sure to skip shadow addresses in COW above.
 
-  return -1;
+  envid_t e;
+  int r;
+
+  set_pgfault_handler(pgfault);
+
+  if ((e = sys_exofork()) < 0) {
+    panic("fork error: %i\n", (int) e);
+  }
+  
+  if (e == 0) {
+    thisenv = &envs[ENVX(sys_getenvid())];
+    return 0;
+  } 
+  else {
+    uint64_t i;
+    for (i = 0; i < UTOP / PGSIZE; i++) {
+      if ((uvpml4e[VPML4E(i * PGSIZE)] & PTE_P) && (uvpde[VPDPE(i * PGSIZE)] & PTE_P) && (uvpd[VPD(i * PGSIZE)] & PTE_P)) {
+        void * addr = (void *)(i * PGSIZE);
+        if (((uintptr_t) addr < UTOP) && ((uintptr_t) addr != UXSTACKTOP - PGSIZE) && (uvpt[PGNUM(addr)] & PTE_P)) {
+          if ((r = duppage(e, PGNUM(addr))) < 0) {
+            return r;
+          }
+        }
+      }
+    }
+    if ((r = sys_env_set_pgfault_upcall(e, thisenv->env_pgfault_upcall)) < 0) {
+      panic("fork error: sys_env_set_pgfault_upcall: %i\n", r);
+    }
+    if ((r = sys_page_alloc(e, (void *) UXSTACKTOP - PGSIZE, PTE_W)) < 0) {
+      panic("fork error: sys_page_alloc: %i\n", r);
+    }
+    if ((r = sys_env_set_status(e, ENV_RUNNABLE)) < 0) {
+      panic("fork error: sys_env_set_status: %i\n", r);
+    }
+    return e;
+  }
 }
 
 // Challenge!
