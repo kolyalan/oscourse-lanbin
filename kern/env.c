@@ -322,7 +322,7 @@ region_alloc(struct Env *e, void *va, size_t len) {
   va = ROUNDDOWN(va, PGSIZE);
   struct PageInfo *pi;
   while (va < end) {
-    pi = page_alloc(0);
+    pi = page_alloc(ALLOC_ZERO);
     page_insert(e->env_pml4e, pi, va, PTE_U | PTE_W);
     va += PGSIZE;
   }

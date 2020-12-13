@@ -70,7 +70,7 @@ pgfault(struct UTrapframe *utf) {
 // It is also OK to panic on error.
 //
 static int
-duppage(envid_t envid, unsigned pn) {
+duppage(envid_t envid, uintptr_t pn) {
   // LAB 9: Your code here.
   pte_t ent = uvpt[pn] & PTE_SYSCALL;
   int r;
