@@ -106,7 +106,7 @@ umain(int argc, char **argv) {
       panic("write /big@%ld: %ld", (long)i, (long)r);
   }
   close(f);
-
+  
   if ((f = open("/big", O_RDONLY)) < 0)
     panic("open /big: %ld", (long)f);
   for (i = 0; i < (NDIRECT * 3) * BLKSIZE; i += sizeof(buf)) {
