@@ -105,46 +105,78 @@ get_rsdp(void) {
   return krsdp;
 }
 
-static void * acpi_find_table(const char * sign) {
-  static RSDT * krsdt;
+static void *
+acpi_find_table(const char *sign) {
+  static RSDT *krsdt;
   static size_t krsdt_len;
   static size_t krsdt_entsz;
+
+  uint8_t cksm = 0;
 
   if (!krsdt) {
     if (!uefi_lp->ACPIRoot) {
       panic("No rsdp\n");
     }
-    RSDP * krsdp = get_rsdp();
- 
-    uint64_t rsdt_pa;
+    RSDP *krsdp = mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
+
+    if (strncmp(krsdp->Signature, "RSD PTR", 8))
+      // panic("Invalid RSDP");
+
+      for (size_t i = 0; i < offsetof(RSDP, Length); i++)
+        cksm = (uint8_t)(cksm + ((uint8_t *)krsdp)[i]);
+    if (cksm)
+      panic("Invalid RSDP");
+
+    uint64_t rsdt_pa = krsdp->RsdtAddress;
+    krsdt_entsz      = 4;
+
     if (krsdp->Revision) {
       /* ACPI version >= 2.0 */
-      rsdt_pa = krsdp->XsdtAddress;
+      for (size_t i = 0; i < krsdp->Length; i++)
+        cksm = (uint8_t)(cksm + ((uint8_t *)krsdp)[i]);
+      if (cksm)
+        panic("Invalid RSDP");
+
+      rsdt_pa     = krsdp->XsdtAddress;
       krsdt_entsz = 8;
     }
-    else {
-      rsdt_pa = krsdp->RsdtAddress;
-      krsdt_entsz = 4;
-    }
-    //Перед тем как обращаться по адресу, мы берем физический адрес 
-    //и отображаем его в некоторый виртуальный адрес в пространстве ядра
-    krsdt = mmio_map_region(rsdt_pa, sizeof(RSDT));
-    //мы можем узнать длину региона только из его заголовка
-    krsdt = mmio_map_region(rsdt_pa, krsdt->h.Length);
 
-    krsdt_len = (krsdt->h.Length - sizeof(RSDT)) / krsdt_entsz; // количество записей в rsdt(xsdt)
+    krsdt = mmio_map_region(rsdt_pa, sizeof(RSDT));
+    /* Remap since we can obtain table length only after mapping */
+    krsdt = mmio_remap_last_region(rsdt_pa, krsdt, sizeof(RSDP), krsdt->h.Length);
+
+    for (size_t i = 0; i < krsdt->h.Length; i++)
+      cksm = (uint8_t)(cksm + ((uint8_t *)krsdt)[i]);
+
+    if (cksm)
+      panic("Invalid RSDP");
+
+    if (strncmp(krsdt->h.Signature, krsdp->Revision ? "XSDT" : "RSDT", 4))
+      panic("Invalid RSDT");
+
+    krsdt_len = (krsdt->h.Length - sizeof(RSDT)) / 4;
+    if (krsdp->Revision) {
+      krsdt_len = krsdt_len / 2;
+    }
   }
 
-  ACPISDTHeader * hd = NULL;
+  ACPISDTHeader *hd = NULL;
+
   for (size_t i = 0; i < krsdt_len; i++) {
-    //получение адреса
+    /* Assume little endian */
     uint64_t fadt_pa = 0;
+    memcpy(&fadt_pa, (uint8_t *)krsdt->PointerToOtherSDT + i * krsdt_entsz, krsdt_entsz);
 
-    memcpy(&fadt_pa, (uint8_t *)krsdt->PointerToOtherSDT + i*krsdt_entsz, krsdt_entsz);
     hd = mmio_map_region(fadt_pa, sizeof(ACPISDTHeader));
-    hd = mmio_map_region(fadt_pa, hd->Length);
+    /* Remap since we can obtain table length only after mapping */
+    hd = mmio_remap_last_region(fadt_pa, hd, sizeof(ACPISDTHeader), krsdt->h.Length);
 
-    if (!strncmp(hd->Signature, sign, 4)) return hd;
+    for (size_t i = 0; i < hd->Length; i++)
+      cksm = (uint8_t)(cksm + ((uint8_t *)hd)[i]);
+    if (cksm)
+      panic("ACPI table '%.4s' invalid", hd->Signature);
+    if (!strncmp(hd->Signature, sign, 4))
+      return hd;
   }
 
   return NULL;

@@ -7,6 +7,7 @@
 // It is one of the bits explicitly allocated to user processes (PTE_AVAIL).
 #define PTE_COW 0x800
 
+extern void _pgfault_upcall(void);
 //
 // Custom page fault handler - if faulting page is copy-on-write,
 // map in our own private writable copy.
@@ -40,7 +41,7 @@ pgfault(struct UTrapframe *utf) {
   //   Make sure you DO NOT use sanitized memcpy/memset routines when using UASAN.
 
   // LAB 9: Your code here.
-  if ((r = sys_page_alloc(0, (void *) PFTEMP, PTE_W)) < 0) {
+  if ((r = sys_page_alloc(0, (void *) PFTEMP, PTE_P | PTE_U | PTE_W)) < 0) {
     panic("pgfault error: sys_page_alloc: %i\n", r);
   }
 
@@ -76,14 +77,21 @@ duppage(envid_t envid, uintptr_t pn) {
   int r;
   envid_t id = sys_getenvid();
 
-  if (ent & (PTE_W | PTE_COW)) {
+  if (uvpt[pn] & PTE_SHARE) {
+    r = sys_page_map(0, (void *)(pn * PGSIZE), envid, (void *)(pn * PGSIZE), ent);
+    if (r < 0) {
+      panic("duppage error: sys_page_map PTE_SHARE: %i\n", r);
+    }
+  }
+  else if (ent & (PTE_W | PTE_COW)) {
     ent = (ent | PTE_COW) & ~PTE_W;
     r = sys_page_map(id, (void *)(pn * PGSIZE), envid, (void *)(pn * PGSIZE), ent);
     if (r < 0) {
       return r;
     }
     r = sys_page_map(id, (void *)(pn * PGSIZE), id, (void *)(pn * PGSIZE), ent);
-  } else {
+  } 
+  else {
     r = sys_page_map(id, (void *)(pn * PGSIZE), envid, (void *)(pn * PGSIZE), ent);
   }
   

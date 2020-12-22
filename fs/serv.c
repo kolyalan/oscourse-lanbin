@@ -7,7 +7,7 @@
 #include <inc/string.h>
 
 #include "fs.h"
-
+#define BUFSIZE PGSIZE - sizeof(int) - sizeof(size_t)
 // The file system server maintains three structures
 // for each open file.
 //
