@@ -129,15 +129,32 @@ fork(void) {
     panic("fork error: %i\n", (int) e);
   }
   
-  if (e == 0) {
+  if (!e) {
     thisenv = &envs[ENVX(sys_getenvid())];
     return 0;
-  } 
-  else {
+  } else {
     uint64_t i;
     for (i = 0; i < UTOP / PGSIZE; i++) {
       if ((uvpml4e[VPML4E(i * PGSIZE)] & PTE_P) && (uvpde[VPDPE(i * PGSIZE)] & PTE_P) && (uvpd[VPD(i * PGSIZE)] & PTE_P)) {
         void * addr = (void *)(i * PGSIZE);
+                  
+
+#ifdef SANITIZE_USER_SHADOW_BASE
+        uintptr_t p = (uintptr_t) addr;
+        if ((p >= SANITIZE_USER_SHADOW_BASE) && (p < SANITIZE_USER_SHADOW_BASE + SANITIZE_USER_SHADOW_SIZE)) {
+          continue;
+        }
+        if ((p >= SANITIZE_USER_EXTRA_SHADOW_BASE) && (p < SANITIZE_USER_EXTRA_SHADOW_BASE + SANITIZE_USER_EXTRA_SHADOW_SIZE)) {
+          continue;
+        }
+        if ((p >= SANITIZE_USER_STACK_SHADOW_BASE) && (p < SANITIZE_USER_STACK_SHADOW_BASE + SANITIZE_USER_STACK_SHADOW_SIZE)) {
+          continue;
+        }
+        if ((p >= SANITIZE_USER_VPT_SHADOW_BASE) && (p < SANITIZE_USER_VPT_SHADOW_BASE + SANITIZE_USER_VPT_SHADOW_SIZE)) {
+          continue;
+        }
+#endif
+
         if (((uintptr_t) addr < UTOP) && ((uintptr_t) addr != UXSTACKTOP - PGSIZE) && (uvpt[PGNUM(addr)] & PTE_P)) {
           if ((r = duppage(e, PGNUM(addr))) < 0) {
             return r;
@@ -151,6 +168,22 @@ fork(void) {
     if ((r = sys_page_alloc(e, (void *) UXSTACKTOP - PGSIZE, PTE_W)) < 0) {
       panic("fork error: sys_page_alloc: %i\n", r);
     }
+
+#ifdef SANITIZE_USER_SHADOW_BASE
+    uintptr_t addr;
+    for (addr = SANITIZE_USER_SHADOW_BASE; addr < SANITIZE_USER_SHADOW_BASE + SANITIZE_USER_SHADOW_SIZE; addr += PGSIZE)
+      if ((r = sys_page_alloc(e, (void *) addr, PTE_P | PTE_U | PTE_W)) < 0)
+        panic("Fork: failed to alloc shadow base page: %i\n", r);
+    for (addr = SANITIZE_USER_EXTRA_SHADOW_BASE; addr < SANITIZE_USER_EXTRA_SHADOW_BASE + SANITIZE_USER_EXTRA_SHADOW_SIZE; addr += PGSIZE)
+      if ((r = sys_page_alloc(e, (void *) addr, PTE_P | PTE_U | PTE_W)) < 0)
+        panic("Fork: failed to alloc shadow extra base page: %i\n", r);
+    for (addr = SANITIZE_USER_STACK_SHADOW_BASE; addr < SANITIZE_USER_STACK_SHADOW_BASE + SANITIZE_USER_STACK_SHADOW_SIZE; addr += PGSIZE)
+      if ((r = sys_page_alloc(e, (void *) addr, PTE_P | PTE_U | PTE_W)) < 0)
+        panic("Fork: failed to alloc shadow stack base page: %i\n", r);
+    for (addr = SANITIZE_USER_VPT_SHADOW_BASE; addr < SANITIZE_USER_VPT_SHADOW_BASE + SANITIZE_USER_VPT_SHADOW_SIZE; addr += PGSIZE)
+      if ((r = sys_page_alloc(e, (void *) addr, PTE_P | PTE_U | PTE_W)) < 0)
+        panic("Fork: failed to alloc shadow vpt base page: %i\n", r);
+#endif
     if ((r = sys_env_set_status(e, ENV_RUNNABLE)) < 0) {
       panic("fork error: sys_env_set_status: %i\n", r);
     }

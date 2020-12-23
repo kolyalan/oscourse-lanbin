@@ -905,7 +905,7 @@ TransitionToKernelMode (
   return EFI_SUCCESS;
 }
 
-/**
+/*1
   Virtual address map transition event to update
   loader params physical addresses to virtual.
 
@@ -1029,12 +1029,17 @@ UefiMain (
     FreePool (LoaderParams);
     return Status;
   }
+  
+  IA32_DESCRIPTOR gdtr;
+  AsmReadGdtr(&gdtr);
 
   DEBUG ((
     DEBUG_INFO,
-    "JOS: CR0 - %Lx CR3 - %Lx\n",
+    "JOS: CR0 - %Lx CR3 - %Lx GDTRBase: - %Lx GDTRLimit: - %Lx\n, ",
     (UINT64) AsmReadCr0 (),
-    (UINT64) AsmReadCr3 ()
+    (UINT64) AsmReadCr3 (),
+    (UINT64) gdtr.Base, 
+    (UINT64) gdtr.Limit
     ));
 
   Status = gBS->CreateEvent (

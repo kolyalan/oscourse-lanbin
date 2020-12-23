@@ -8,6 +8,7 @@
 
 #include "fs.h"
 #define BUFSIZE PGSIZE - sizeof(int) - sizeof(size_t)
+
 // The file system server maintains three structures
 // for each open file.
 //
@@ -199,17 +200,23 @@ serve_read(envid_t envid, union Fsipc *ipc) {
     cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, (uint32_t)req->req_n);
 
   // Lab 10: Your code here:
+  struct Fsret_read *ret = &ipc->readRet;
   struct OpenFile *o;
   int r;
-	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0) {
-	  return r;
-	}
-  struct Fsret_read *ret = &ipc->readRet;
-	int count = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset);
+
+  if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0) {
+    return r;
+  }
+
+  if (req->req_n > BUFSIZE) {
+    req->req_n = BUFSIZE;
+  }
+
+  int count = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset);
   if (count > 0) {
     o->o_fd->fd_offset += count;
   } 
-	return count;
+  return count;
 }
 
 // Write req->req_n bytes from req->req_buf to req_fileid, starting at
@@ -224,14 +231,15 @@ serve_write(envid_t envid, struct Fsreq_write *req) {
   // LAB 10: Your code here.
   struct OpenFile *o;
   int r;
+    
   if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0) {
     return r;
   }
   int count = file_write(o->o_file, req->req_buf, req->req_n, o->o_fd->fd_offset);
-	if (count > 0) {
-		o->o_fd->fd_offset += count;
-	}
-	return count;
+  if (count > 0) {
+    o->o_fd->fd_offset += count;
+  }
+  return count;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the

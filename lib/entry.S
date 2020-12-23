@@ -7,7 +7,6 @@
 // LAB 12: Your code here.
   .globl vsys
   .set vsys, UVSYS
-  
   .globl envs
   .set envs, UENVS
   .globl pages

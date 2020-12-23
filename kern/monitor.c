@@ -36,10 +36,11 @@ static struct Command commands[] = {
     {"kerninfo", "Display information about the kernel", mon_kerninfo},
     {"backtrace", "Print stack backtrace", mon_backtrace},
     {"name", "Print user's name", mon_name},
-    {"timer_start", "Start timer", mon_start},
-    {"timer_stop", "Stop timer and display time", mon_stop},
-    {"timer_freq", "Display timer frequency", mon_frequency},
-    {"memory", "Displays a list of all physical pages", mon_memory}
+    {"moo", "This kernel does not have Cow Superpower", mon_moo},
+    {"timer_start", "Start one of the timers hpet0, hpet1, pit, pm. Only one timer can be run at a time", mon_start},
+    {"timer_stop", "Stop one of the timers", mon_stop},
+    {"timer_freq", "Measure the cpu frequency using one of hpet0, hpet1, pit, pm", mon_frequency},
+    {"memory", "Print list of all physical pages", mon_memory}
     };
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
@@ -58,6 +59,49 @@ int
 mon_hello(int argc, char **argv, struct Trapframe *tf) {
   cprintf("Hello!\n");
   return 0;
+}
+
+int mon_moo(int argc, char **argv, struct Trapframe *tf) {
+    if (argc <= 1 || argv[1][0] != '-') {
+        cprintf("There are no Easter Eggs in this kernel.\n");
+    } else {
+        int count_v = 0;
+        for (int i = 1; i < strlen(argv[1]); i++) {
+            if (argv[1][i] == 'v') {
+                count_v++;
+            }
+        }
+        switch (count_v) {
+            case 0:
+                cprintf("There are no Easter Eggs in this kernel.\n");
+                break;
+            case 1:
+                cprintf("There really are no Easter Eggs in this kernel.\n");
+                break;
+            case 2:
+                cprintf("Didn't I already tell you that there are no Easter Eggs in this kernel?\n");
+                break;
+            case 3:
+                cprintf("Stop it!\n");
+                break;
+            case 4:
+                cprintf("Okay, okay, if I give you an Easter Egg, will you go away?\n");
+                break;
+            case 5:
+                cprintf("All right, you win.\n \n \
+                               /----\\\n \
+                       -------/      \\\n \
+                      /               \\\n \
+                     /                |\n \
+   -----------------/                  --------\\\n \
+   ----------------------------------------------\n");
+                break;
+            default:
+                cprintf("What is it?  It's an elephant being eaten by a snake, of course.\n");
+
+        }
+    }
+    return 0;
 }
 
 int
@@ -86,7 +130,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
   uint64_t *rbp = 0;
   uint64_t rip = 0;
   struct Ripdebuginfo info;
-  rbp = (uint64_t *)read_rbp();
+  rbp = (uint64_t *) (tf ? tf->tf_regs.reg_rbp : read_rbp());
   cprintf("Stack backtrace:\n");
   while(rbp) {
     rip = rbp[1];
@@ -101,71 +145,53 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 int
 mon_name(int argc, char **argv, struct Trapframe *tf) {
   cprintf("My name is Sasha\n");
-  return 0;
+    return 0;
 }
 
-// LAB 5: Your code here.
-// Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands.
 
-int
-mon_start(int argc, char **argv, struct Trapframe *tf) {
+// LAB 5: Done
+// Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands.
+int mon_start(int argc, char **argv, struct Trapframe *tf) {
   if (argc < 2) {
-    return 1;
+    cprintf("I need a timer name to start\n");
+    return 0;
   }
   timer_start(argv[1]);
   return 0;
 }
 
-int
-mon_stop(int argc, char **argv, struct Trapframe *tf) {
+int mon_stop(int argc, char **argv, struct Trapframe *tf) {
   timer_stop();
   return 0;
 }
-
-int
-mon_frequency(int argc, char **argv, struct Trapframe *tf) {
+int mon_frequency(int argc, char **argv, struct Trapframe *tf) {
   if (argc < 2) {
-    return 1;
+    cprintf("I need a timer name to start\n");
+    return 0;
   }
   timer_cpu_frequency(argv[1]);
   return 0;
 }
+
 // LAB 6: Your code here.
 // Implement memory (mon_memory) commands.
 int
 mon_memory(int argc, char **argv, struct Trapframe *tf) {
-  bool allocated = true;
-  size_t first = 0;
-  for (size_t i = 0; i < npages; ++i) {
-    if (!pages[i].pp_ref && allocated) {
-      if (first != i - 1) {
-        cprintf("%ld..", first);
+  size_t i;
+  int is_cur_free;
+
+  for (i = 1; i <= npages; i++) {
+    is_cur_free = !page_is_allocated(&pages[i - 1]);
+    cprintf("%lu", i);
+    if ((i < npages) && (page_is_allocated(&pages[i]) ^ is_cur_free)) {
+      while ((i < npages) && (page_is_allocated(&pages[i]) ^ is_cur_free)) {
+        i++;
       }
-      cprintf("%ld ALLOCATED\n", i);
-      first = i + 1;
-      allocated = false;
+      cprintf("..%lu", i);
     }
-    else if (pages[i].pp_ref && !allocated) {
-      if (first != i - 1) {
-        cprintf("%ld..", first);
-      }
-      cprintf("%ld FREE\n", i);
-      first = i + 1;
-      allocated = true;
-    }
+    cprintf(is_cur_free ? " FREE\n" : " ALLOCATED\n");
   }
-  if(allocated) {
-    if (first != npages - 1) {
-      cprintf("%ld..", first);
-    }
-    cprintf("%ld ALLOCATED\n", npages);
-  }
-  else {
-    if (first != npages - 1) {
-      cprintf("%ld..", first);
-    }
-    cprintf("%ld FREE\n", npages);
-  }
+
   return 0;
 }
 

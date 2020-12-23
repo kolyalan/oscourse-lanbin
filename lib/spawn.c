@@ -327,13 +327,13 @@ copy_shared_pages(envid_t child) {
   // LAB 11: Your code here.
   int err = 0;
   for (size_t i = 0; i < UTOP; i += PGSIZE) {
-    if (!(uvpml4e[VPML4E(i)] & PTE_P && uvpde[VPDPE(i)] & PTE_P && uvpd[VPD(i)] & PTE_P)) {
+    if (!(uvpml4e[VPML4E(i)] & PTE_P) || !(uvpde[VPDPE(i)] & PTE_P) || !(uvpd[VPD(i)] & PTE_P)) {
       continue;
     }
     if ((uvpt[VPN(i)] & (PTE_P | PTE_SHARE)) == (PTE_P | PTE_SHARE)) {
-      if ((err = sys_page_map(0, (void *)i, child, (void *)i, uvpt[VPN(i)] & PTE_SYSCALL)) < 0) {
+      err = sys_page_map(0, (void *)i, child, (void *)i, uvpt[VPN(i)] & PTE_SYSCALL);
+      if (err < 0)
         break;
-      }
     }
   }
   return err;

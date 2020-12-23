@@ -49,38 +49,18 @@ sys_getenvid(void) {
 static int
 sys_env_destroy(envid_t envid) {
   // LAB 8: Your code here.
+  int r;
   struct Env *e;
-  int r = envid2env(envid, &e, 1);
-  if (r < 0) {
+
+  if ((r = envid2env(envid, &e, 1)) < 0) {
     return r;
   }
-  if (curenv == e) {
+  if (e == curenv) {
     cprintf("[%08x] exiting gracefully\n", curenv->env_id);
-  }
-  else {
+  } else {
     cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
   }
   env_destroy(e);
-  return 0;
-}
-
-static int
-sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
-  struct Env *env;
-  int res = envid2env(envid, &env, 1);
-
-  if (res < 0)
-    return res;
-
-  user_mem_assert(curenv, tf, sizeof(*tf), 0);
-
-  env->env_tf       = *tf;
-  env->env_tf.tf_cs = GD_UT | 3;
-  env->env_tf.tf_ds = GD_UD | 3;
-  env->env_tf.tf_es = GD_UD | 3;
-  env->env_tf.tf_ss = GD_UD | 3;
-  env->env_tf.tf_rflags &= 0xFFF;
-  env->env_tf.tf_rflags |= FL_IF;
   return 0;
 }
 
@@ -104,9 +84,9 @@ sys_exofork(void) {
 
   // LAB 9: Your code here.
   struct Env *e = NULL;
-  int res = env_alloc(&e, curenv->env_id);
+  int res;
 
-  if (res < 0) {
+  if ((res = env_alloc(&e, curenv->env_id)) < 0) {
     return res;
   }
 
@@ -143,6 +123,26 @@ sys_env_set_status(envid_t envid, int status) {
       return -E_INVAL;
   }
   e->env_status = status;
+  return 0;
+}
+
+static int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
+  struct Env *env;
+  int res = envid2env(envid, &env, 1);
+
+  if (res < 0)
+    return res;
+
+  user_mem_assert(curenv, tf, sizeof(*tf), 0);
+
+  env->env_tf       = *tf;
+  env->env_tf.tf_cs = GD_UT | 3;
+  env->env_tf.tf_ds = GD_UD | 3;
+  env->env_tf.tf_es = GD_UD | 3;
+  env->env_tf.tf_ss = GD_UD | 3;
+  env->env_tf.tf_rflags &= 0xFFF;
+  env->env_tf.tf_rflags |= FL_IF;
   return 0;
 }
 
@@ -388,12 +388,12 @@ sys_ipc_recv(void *dstva) {
   if ((uintptr_t)dstva < UTOP && PGOFF(dstva)) {
     return -E_INVAL;
   }
-	curenv->env_ipc_recving = 1;
-	curenv->env_ipc_dstva = dstva;
-	curenv->env_status = ENV_NOT_RUNNABLE;
+  curenv->env_ipc_recving = 1;
+  curenv->env_ipc_dstva = dstva;
+  curenv->env_status = ENV_NOT_RUNNABLE;
   curenv->env_tf.tf_regs.reg_rax = 0;
-	sched_yield();
-	return 0;
+  sched_yield();
+  return 0;
 }
 
 // Return date and time in UNIX timestamp format: seconds passed

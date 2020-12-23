@@ -63,8 +63,6 @@ _pgfault_upcall:
 	// registers are available for intermediate calculations.  You
 	// may find that you have to rearrange your code in non-obvious
 	// ways as registers become unavailable as scratch space.
-	//
-	// LAB 9: Your code here.
 
 	// Restore the trap-time registers.  After you do this, you
 	// can no longer modify any general-purpose registers.
@@ -85,6 +83,7 @@ _pgfault_upcall:
 	popq %rdx
 	popq %rcx
 
+	// Push trap-time %rip onto the trap-time stack. Do it here in order not to deal with too large offsets from rsp
 	movq 32(%rsp), %rbx
 	movq 16(%rsp), %rax
 	subq $8, %rbx
@@ -93,18 +92,21 @@ _pgfault_upcall:
 
 	popq %rbx
 	popq %rax
-
+	
 	// Restore rflags from the stack.  After you do this, you can
 	// no longer use arithmetic operations or anything else that
 	// modifies rflags.
 	// LAB 9: Your code here.
+	
 	pushq 8(%rsp)
 	popfq
 
 	// Switch back to the adjusted trap-time stack.
 	// LAB 9: Your code here.
+	
 	movq 16(%rsp), %rsp
 
 	// Return to re-execute the instruction that faulted.
 	// LAB 9: Your code here.
+
 	ret

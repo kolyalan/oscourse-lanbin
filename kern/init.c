@@ -152,7 +152,7 @@ i386_init(void) {
   trap_init();
 
   // choose the timer used for scheduling: hpet or pit
-  timers_schedule("hpet0");
+  timers_schedule("hpet1");
   clock_idt_init();
 
 #ifdef CONFIG_KSPACE

@@ -17,6 +17,7 @@ int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
 int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
 int mon_hello(int argc, char **argv, struct Trapframe *tf);
 int mon_name(int argc, char **argv, struct Trapframe *tf);
+int mon_moo(int argc, char **argv, struct Trapframe *tf);
 int mon_start(int argc, char **argv, struct Trapframe *tf);
 int mon_stop(int argc, char **argv, struct Trapframe *tf);
 int mon_frequency(int argc, char **argv, struct Trapframe *tf);

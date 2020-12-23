@@ -135,15 +135,14 @@ int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc) {
   // LAB 10: Your code here.
   int newb;
+  
   if (filebno >= NDIRECT + NINDIRECT) {
       return -E_INVAL;
   }
+
   if (filebno < NDIRECT) {
-    uint32_t *bno = f->f_direct + filebno;
-    if (ppdiskbno)
-      *ppdiskbno = bno;
-  } 
-  else {
+      *ppdiskbno = f->f_direct + filebno;
+  } else {
     if (!f->f_indirect) {
       if (!alloc) {
         return -E_NOT_FOUND;
@@ -151,12 +150,10 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
       if ((newb = alloc_block()) < 0) {
         return -E_NO_DISK;
       }
-      else {
-        f->f_indirect = newb;
-        memset(diskaddr(f->f_indirect), 0, BLKSIZE);
-      }
+      f->f_indirect = newb;
+      memset(diskaddr(f->f_indirect), 0, BLKSIZE);
     }
-    *ppdiskbno = (uint32_t *) diskaddr(f->f_indirect) + filebno - NDIRECT;
+    *ppdiskbno = (uint32_t *) diskaddr(f->f_indirect) + (filebno - NDIRECT);
   }
   return 0;
 }

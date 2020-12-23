@@ -83,9 +83,6 @@ flush_block(void *addr) {
     panic("reading non-existent block %08x out of %08x\n", blockno, super->s_nblocks);
 
   // LAB 10: Your code here.
-  if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE)) {
-		panic("flush_block of bad va %p", addr);
-  }
   addr = ROUNDDOWN(addr, PGSIZE);
 	if (!va_is_mapped(addr) || !va_is_dirty(addr)) {
 		return;
@@ -135,7 +132,7 @@ bc_init(void) {
   struct Super super;
   set_pgfault_handler(bc_pgfault);
   check_bc();
-
+  
   // cache the super block by reading it once
   memmove(&super, diskaddr(1), sizeof super);
 }

@@ -603,6 +603,7 @@ function_by_info(const struct Dwarf_Addrs *addrs, uintptr_t p,
   return 0;
 }
 
+// It seems that this function sets a value to *offset and returns
 int
 address_by_fname(const struct Dwarf_Addrs *addrs, const char *fname,
                  uintptr_t *offset) {

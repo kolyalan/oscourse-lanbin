@@ -90,21 +90,7 @@ acpi_enable(void) {
   }
 }
 
-// Obtain RSDP ACPI table address from bootloader.
-RSDP *
-get_rsdp(void) {
-  static void *krsdp = NULL;
-
-  if (krsdp != NULL)
-    return krsdp;
-
-  if (uefi_lp->ACPIRoot == 0)
-    panic("No rsdp\n");
-
-  krsdp = mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
-  return krsdp;
-}
-
+// LAB 5: Your code here.
 static void *
 acpi_find_table(const char *sign) {
   static RSDT *krsdt;
@@ -122,7 +108,7 @@ acpi_find_table(const char *sign) {
     if (strncmp(krsdp->Signature, "RSD PTR", 8))
       // panic("Invalid RSDP");
 
-      for (size_t i = 0; i < offsetof(RSDP, Length); i++)
+    for (size_t i = 0; i < offsetof(RSDP, Length); i++)
         cksm = (uint8_t)(cksm + ((uint8_t *)krsdp)[i]);
     if (cksm)
       panic("Invalid RSDP");
@@ -182,11 +168,11 @@ acpi_find_table(const char *sign) {
   return NULL;
 }
 
-// LAB 5: Your code here.
+// LAB 5: My your code
 // Obtain and map FADT ACPI table address.
 FADT *
 get_fadt(void) {
-  static FADT *kfadt;
+  static FADT *kfadt = NULL;
   if (!kfadt) {
     kfadt = acpi_find_table("FACP");
   }
@@ -197,7 +183,7 @@ get_fadt(void) {
 // Obtain and map RSDP ACPI table address.
 HPET *
 get_hpet(void) {
-  static HPET *khpet;
+  static HPET *khpet = NULL;
   if (!khpet) {
     khpet = acpi_find_table("HPET");
   }
@@ -298,27 +284,40 @@ hpet_get_main_cnt(void) {
 // Hint: to be able to use HPET as PIT replacement consult
 // LegacyReplacement functionality in HPET spec.
 
-#define TN_INT_TYPE_CNF (1 << 1)
-#define TN_INT_ENB_CNF (1 << 2)
-#define TN_TYPE_CNF (1 << 3)
-#define TN_VAL_SET_CNF (1 << 6)
+#define HPET_GLOBAL_ENABLE_CNF 1ULL;
+#define HPET_GLOBAL_LEGACY_REPLACEMENT_BIT (1ULL << 1);
+
+#define HPET_TIM_INT_TYPE_CNF (1ULL << 1)//edge(0) or level(1) triggered interrupts. We need edge, as we configured 8259A in picirq.c
+#define HPET_TIM_VAL_SET_CNF (1ULL << 6)//set this before setting comparator. Cleared avvtomaticaly with comparator setting
+#define HPET_TIM_INT_ENABLE_CNF (1ULL << 2)//enable interrupts from timer
+#define HPET_TIM_TYPE_CNF (1ULL << 3)//non-periodic(0) or periodic(1) interrupts mode
+
+
+#define HPET_TN_TYPE_CNF (1 << 3)
+#define HPET_TN_INT_ENB_CNF (1 << 2)
+#define HPET_TN_VAL_SET_CNF (1 << 6)
+#define HPET_LEG_RT_CNF (1 << 1)
 
 void
 hpet_enable_interrupts_tim0(void) {
-  hpetReg->GEN_CONF |= TN_INT_TYPE_CNF;
-  hpetReg->TIM0_CONF = (IRQ_TIMER << 9) | TN_TYPE_CNF | TN_INT_ENB_CNF | TN_VAL_SET_CNF;
-  //hpetReg->TIM0_COMP = hpet_get_main_cnt() + Peta / 2 / hpetFemto; //0.5 sek
-  hpetReg->TIM0_COMP = Peta / 2 / hpetFemto;
+  hpetReg->GEN_CONF &= ~HPET_GLOBAL_ENABLE_CNF; //Halt the main counter
+  hpetReg->GEN_CONF |= HPET_GLOBAL_LEGACY_REPLACEMENT_BIT; //obvious
+  hpetReg->MAIN_CNT = 0ULL; //Reset the main counter
+  hpetReg->TIM0_CONF = HPET_TIM_INT_ENABLE_CNF | HPET_TIM_TYPE_CNF | HPET_TIM_VAL_SET_CNF;
+  hpetReg->TIM0_COMP = hpetFreq / 2; //[Hz]*[sec] = [ticks/sec]*[sec] = [ticks]
   irq_setmask_8259A(irq_mask_8259A & ~(1 << IRQ_TIMER));
+  hpetReg->GEN_CONF |= HPET_GLOBAL_ENABLE_CNF; //Restart the main timer
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
-  hpetReg->GEN_CONF |= TN_INT_TYPE_CNF;
-  hpetReg->TIM1_CONF = (IRQ_CLOCK << 9) | TN_TYPE_CNF | TN_INT_ENB_CNF | TN_VAL_SET_CNF;
-  //hpetReg->TIM1_COMP = hpet_get_main_cnt() + 3 * Peta / 2 / hpetFemto; //1.5 sek
-  hpetReg->TIM1_COMP = 3 * Peta / 2 / hpetFemto;
+  hpetReg->GEN_CONF &= ~HPET_GLOBAL_ENABLE_CNF; //Halt the main counter
+  hpetReg->GEN_CONF |= HPET_GLOBAL_LEGACY_REPLACEMENT_BIT; //obvious
+  hpetReg->MAIN_CNT = 0ULL; //Reset the main counter
+  hpetReg->TIM1_CONF = HPET_TIM_INT_ENABLE_CNF | HPET_TIM_TYPE_CNF | HPET_TIM_VAL_SET_CNF;
+  hpetReg->TIM1_COMP = hpetFreq * 3 / 2; //[Hz]*[sec] = [ticks/sec]*[sec] = [ticks]
   irq_setmask_8259A(irq_mask_8259A & ~(1 << IRQ_CLOCK));
+  hpetReg->GEN_CONF |= HPET_GLOBAL_ENABLE_CNF; //Restart the main timer
 }
 
 void
@@ -376,8 +375,8 @@ pmtimer_cpu_frequency(void) {
     asm("pause");
     uint32_t tick1 = pmtimer_get_timeval();
     delta = tick1 - tick0;
-    if (-delta <= 0xFFFFFF) {
-      delta += 0xFFFFFF;
+    if (-delta <= 0x00FFFFFF) {
+      delta += 0x00FFFFFF;
     } else if (tick0 > tick1) {
       delta += 0xFFFFFFFF;
     }

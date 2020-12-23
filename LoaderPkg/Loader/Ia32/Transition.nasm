@@ -88,18 +88,20 @@ ASM_PFX(CallKernelThroughGateAsm):
     pop ecx
     mov eax, PAGE_TABLE
     mov [eax], ecx
-
+    
     ; 1. Disable paging.
     ; LAB 2: Your code here:
+    
     mov ecx, cr0
-    and ecx, 0x7FFFFFF
+    btr ecx, 31; Disable paging
     mov cr0, ecx
 
     ; 2. Switch to our GDT that supports 64-bit mode and update CS to LINEAR_CODE_SEL.
     ; LAB 2: Your code here:
+    
     lgdt [GDT_DESCRIPTOR]
     jmp LINEAR_CODE_SEL:AsmWithOurGdt
-
+    
 AsmWithOurGdt:
 
     ; 3. Reset all the data segment registers to linear mode (LINEAR_DATA_SEL).
@@ -114,44 +116,47 @@ AsmWithOurGdt:
     ; 4. Enable PAE/PGE in CR4, which is required to transition to long mode.
     ; This may already be enabled by the firmware but is not guaranteed.
     ; LAB 2: Your code here:
-    mov ecx, cr4
-    or ecx, 0xA0
-    mov cr4, ecx
+    mov eax, cr4
+    bts eax, 5; PAE (Physical Address Extension)
+    bts eax, 7; PGE (Page Global Enable)
+    mov cr4, eax
 
     ; 5. Update page table address register (C3) right away with the supplied PAGE_TABLE.
     ; This does nothing as paging is off at the moment as paging is disabled.
     ; LAB 2: Your code here:
-    mov ecx, [REL PAGE_TABLE]
-    mov cr3, ecx
+    mov eax, [PAGE_TABLE]
+    mov cr3, eax
 
     ; 6. Enable long mode (LME) and execute protection (NXE) via the EFER MSR register.
     ; LAB 2: Your code here:
     mov ecx, 0xC0000080
     rdmsr
-    or eax, 0x900
+    bts eax, 8; LME
+    bts eax, 11; NXE
     wrmsr
 
     ; 7. Enable paging as it is required in 64-bit mode.
     ; LAB 2: Your code here:
-    mov ecx, cr0
-    or ecx, 0x80000000
-    mov cr0, ecx
+    mov eax, cr0
+    bts eax, 31; Enable paging
+    mov cr0, eax
 
     ; 8. Transition to 64-bit mode by updating CS with LINEAR_CODE64_SEL.
     ; LAB 2: Your code here:
-    jmp LINEAR_CODE64_SEL:AsmInLongMode
+    jmp LINEAR_CODE64_SEL:AsmInLongMode 
 
 AsmInLongMode:
     BITS 64
 
     ; 9. Reset all the data segment registers to linear 64-bit mode (LINEAR_DATA64_SEL).
     ; LAB 2: Your code here:
-    mov cx, LINEAR_DATA64_SEL
-    mov ds, cx
-    mov ss, cx
-    mov es, cx
-    mov fs, cx
-    mov gs, cx
+    mov eax, LINEAR_DATA64_SEL
+    mov ds, ax
+    mov ss, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    
 
     ; 10. Jump to the kernel code.
     mov ecx, [REL LOADER_PARAMS]
