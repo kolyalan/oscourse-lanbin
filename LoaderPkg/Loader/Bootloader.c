@@ -159,6 +159,250 @@ InitGraphics (
   return EFI_SUCCESS;
 }
 
+STATIC
+EFI_STATUS
+ShowPassword(
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *TextOutput,
+  UINTN     Columns,
+  UINTN     Rows,
+  UINTN     SymbolsNum
+  )
+{
+  EFI_STATUS    Status;
+  CHAR16        Buffer[Columns+1];
+  CHAR16        DirtyBuffer[Columns+1];
+  UINTN         CurColumn = 0;
+  UINTN         CurRow = 0;
+  //fill arrays
+  for (int i = 0; i < Columns; i++) {
+    Buffer[i] = u' ';
+    DirtyBuffer[i] = u'*';
+  }
+  Buffer[Columns] = '\0';
+  DirtyBuffer[Columns] = '\0';
+
+  CurRow    = Rows / 2;
+  CurColumn = 0;
+/*
+  Status = TextOutput->EnableCursor(TextOutput, FALSE);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot disable cursor - %r\n", Status));
+    return Status;
+  }
+*/
+  //clean all possible password space
+  for (int i = 0; i < MAX_PASSWORD_LEN / Columns + 1; i++) {
+    Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow+i);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot set cursor position - %r\n", Status));
+      return Status;
+    }
+    Status = TextOutput->OutputString(TextOutput, Buffer);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot remove password - %r\n", Status));
+      return Status;
+    }
+  }
+
+  //fill lines full of asterisks
+  while (SymbolsNum >= Columns) {
+    Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot set cursor position - %r\n", Status));
+      return Status;
+    }
+    Status = TextOutput->OutputString(TextOutput, DirtyBuffer);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot set asterisk string - %r\n", Status));
+      return Status;
+    }
+    CurRow++;
+    SymbolsNum -= Columns;
+  }
+
+  //fill last line
+  Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set cursor position - %r\n", Status));
+    return Status;
+  }
+  for (int i = (Columns - SymbolsNum) / 2; i < (Columns - SymbolsNum) / 2 + SymbolsNum; i++) {
+    Buffer[i] = u'*';
+  }
+  Status = TextOutput->OutputString(TextOutput, Buffer);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set half-asterisk string - %r\n", Status));
+    return Status;
+  }
+
+  CurColumn = (Columns - SymbolsNum) / 2 + SymbolsNum;
+
+  Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set cursor position - %r\n", Status));
+    return Status;
+  }
+  
+  Status = TextOutput->EnableCursor(TextOutput, TRUE);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot enable cursor - %r\n", Status));
+    return Status;
+  }
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+ConsoleGetPassword(
+  OUT CHAR16  *Password,
+  IN  UINTN   Size
+  ) 
+{
+  EFI_STATUS                      Status;
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *TextOutput;
+  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *TextInput;
+  CHAR16                          String[] = u"Please enter disk password:";
+  UINTN                           EventIndex = 0;
+  EFI_INPUT_KEY                   KeyInput;
+  UINTN                           CharRead = 0;
+
+
+  UINTN     Columns = 0;
+  UINTN     Rows = 0;
+  UINTN     CurColumn = 0;
+  UINTN     CurRow = 0;
+
+  ASSERT(Size > 1);
+
+  Status = HandleProtocolFallback (
+    gST->ConsoleOutHandle,
+    &gEfiSimpleTextOutProtocolGuid,
+    (VOID **) &TextOutput
+    );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot find text output protocol - %r\n", Status));
+    return Status;
+  }
+
+  Status = HandleProtocolFallback (
+    gST->ConsoleOutHandle,
+    &gEfiSimpleTextInProtocolGuid,
+    (VOID **) &TextInput
+    );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot find text input protocol - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextOutput->SetMode(TextOutput, 2);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set output mode to 2 - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextOutput->SetAttribute(TextOutput, EFI_GREEN | EFI_BACKGROUND_BLACK);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set text output attributes - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextOutput->ClearScreen(TextOutput);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot clear screen - %r\n", Status));
+    return Status;
+  }
+
+  TextOutput->QueryMode(TextOutput, TextOutput->Mode->Mode, &Columns, &Rows);
+
+  CurColumn = Columns / 2 - 14;
+  CurRow    = Rows / 2 - 1;
+
+  Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set cursor position - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextOutput->EnableCursor(TextOutput, 1);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot enable cursor - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextOutput->OutputString(TextOutput, String);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot output password prompt - %r\n", Status));
+    return Status;
+  }
+
+  CurRow++;
+  CurColumn = Columns / 2;
+  Status = TextOutput->SetCursorPosition(TextOutput, CurColumn, CurRow);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot update cursor position - %r\n", Status));
+    return Status;
+  }
+
+  Status = TextInput->Reset(TextInput, 0);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot reset text input - %r\n", Status));
+    return Status;
+  }
+
+  while (1) {
+    Status = gBS->WaitForEvent(1, &TextInput->WaitForKey, &EventIndex);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot wait for key input - %r, index %lld\n", Status, EventIndex));
+      return Status;
+    }
+    Status = TextInput->ReadKeyStroke(TextInput, &KeyInput);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot read key - %r\n", Status));
+      return Status;
+    }
+    DEBUG((DEBUG_INFO, "Key read: scan code %d, unicode: %d\n", KeyInput.ScanCode, KeyInput.UnicodeChar));
+    if (KeyInput.ScanCode != 0) {
+      continue;
+    }
+    if (KeyInput.UnicodeChar == 0x000A || KeyInput.UnicodeChar == 0x000D) {
+      break;
+    }
+    if(KeyInput.UnicodeChar == 0x0008) {
+      DEBUG ((DEBUG_INFO, "JOS: Got backspace symbol"));
+      if (CharRead <= 0) {
+        continue;
+      }
+      Password[--CharRead] = u'\0';
+      Status = ShowPassword(TextOutput, Columns, Rows, CharRead);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "JOS: Cannot show password - %r\n", Status));
+        return Status;
+      }
+      continue;
+    }
+    if (CharRead >= Size - 2) {
+      continue;
+    }
+    Password[CharRead] = KeyInput.UnicodeChar;
+    CharRead++;
+    Status = ShowPassword(TextOutput, Columns, Rows, CharRead);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot show password - %r\n", Status));
+      return Status;
+    }
+  }
+  Password[CharRead] = '\0';
+
+  Status = TextOutput->ClearScreen(TextOutput);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot clear screen - %r\n", Status));
+    return Status;
+  }
+
+  return EFI_SUCCESS;
+
+}
+
 /**
   Find RSD_PTR Table In Legacy Area
 
@@ -1022,6 +1266,13 @@ UefiMain (
   LoaderParams->RTServices   = (UINTN) gRT;
   LoaderParams->ACPIRoot     = (UINTN) AcpiFindRsdp ();
   LoaderParams->SelfVirtual  = (UINTN) LoaderParams;
+
+  Status = ConsoleGetPassword(LoaderParams->DiskPassword, MAX_PASSWORD_LEN);
+  if (EFI_ERROR(Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Failed to obtain password - %r\n", Status));
+    FreePool (LoaderParams);
+    return Status;
+  }
 
   Status = InitGraphics (LoaderParams);
   if (EFI_ERROR (Status)) {

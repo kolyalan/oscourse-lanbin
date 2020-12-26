@@ -52,6 +52,7 @@
   gEfiDevicePathProtocolGuid        ## SOMTIMES_CONSUMES
   gEfiLoadedImageProtocolGuid       ## SOMTIMES_CONSUMES
   gEfiSimpleFileSystemProtocolGuid  ## SOMTIMES_CONSUMES
+  gEfiSimpleTextInProtocolGuid      ## SOMTIMES_CONSUMES
 
 [FeaturePcd]
 

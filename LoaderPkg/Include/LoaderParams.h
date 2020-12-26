@@ -6,6 +6,8 @@
 #ifndef LOADER_PARAMS_H
 #define LOADER_PARAMS_H
 
+#define MAX_PASSWORD_LEN 256
+
 typedef struct {
   ///
   /// Virtual pointer to self.
@@ -34,6 +36,9 @@ typedef struct {
   UINT32                   FrameBufferSize;
   UINT32                   VerticalResolution;
   UINT32                   HorizontalResolution;
+
+  // Disk password
+  CHAR16                   DiskPassword[MAX_PASSWORD_LEN];
 
   ///
   /// Debug information.

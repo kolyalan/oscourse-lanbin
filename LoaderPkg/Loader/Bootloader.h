@@ -19,6 +19,8 @@
 #include <Protocol/GraphicsOutput.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/SimpleFileSystem.h>
+#include <Protocol/SimpleTextIn.h>
+#include <Protocol/SimpleTextOut.h>
 
 #include "Elf64.h"
 
