@@ -14,6 +14,8 @@ struct tm {
   int tm_year; /* Year - 1900.  */
 };
 
+typedef uint32_t clock_t;
+
 #define MINUTE (60)
 #define HOUR (60*60)
 #define DAY (24*60*60)

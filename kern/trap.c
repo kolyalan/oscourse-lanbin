@@ -331,7 +331,7 @@ page_fault_handler(struct Trapframe *tf) {
 
   // LAB 8: Your code here.
   if (!(tf->tf_cs & 0x3)) {
-    panic("unhandled trap in kernel");
+    panic("unhandled trap in kernel, va = %lx", fault_va);
   }
 
   // We've already handled kernel-mode exceptions, so if we get here,

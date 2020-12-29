@@ -56,7 +56,7 @@ ls1(const char *prefix, bool isdir, off_t size, const char *name) {
 void
 usage(void) {
   printf("usage: ls [-dFl] [file...]\n");
-  exit();
+  exit(0);
 }
 
 void

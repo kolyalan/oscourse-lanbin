@@ -1,5 +1,14 @@
 
 #include "fs.h"
+#include <tomcrypt.h>
+
+unsigned char passwd[256];
+
+unsigned char diskkey[64];
+
+unsigned char tmp_page[BLKSIZE];
+
+symmetric_xts xts;
 
 // Return the virtual address of this disk block.
 void *
@@ -30,8 +39,9 @@ va_is_dirty(void *va) {
 // loading it from disk.
 static void
 bc_pgfault(struct UTrapframe *utf) {
-  void *addr       = (void *)utf->utf_fault_va;
-  uint32_t blockno = (uint32_t)((uintptr_t)addr - (uintptr_t)DISKMAP) / BLKSIZE;
+  void *addr        = (void *)utf->utf_fault_va;
+  uint32_t blockno  = (uint32_t)((uintptr_t)addr - (uintptr_t)DISKMAP) / BLKSIZE;
+  uint64_t tweak[2] = {blockno, 0}; 
 
   // Check that the fault was within the block cache region
   if (addr < (void *)DISKMAP || addr >= (void *)(DISKMAP + DISKSIZE))
@@ -53,9 +63,13 @@ bc_pgfault(struct UTrapframe *utf) {
 	if (r < 0) {
 		panic("sys_page_alloc: %i", r);
   }
-  r = ide_read(blockno * BLKSECTS, addr, BLKSECTS);
+  r = ide_read(blockno * BLKSECTS, tmp_page, BLKSECTS);
 	if (r < 0) {
 		panic("ide_read: %i", r);
+  }
+  r = xts_decrypt(tmp_page, BLKSIZE, addr, (unsigned char *)&tweak, &xts);
+  if (r != CRYPT_OK) {
+    panic("unable to decrypt block no: %d, addr: %p", blockno, addr);
   }
   r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL);
 	if (r < 0) {
@@ -76,6 +90,7 @@ bc_pgfault(struct UTrapframe *utf) {
 void
 flush_block(void *addr) {
   uint32_t blockno = (uint32_t)((uintptr_t)addr - (uintptr_t)DISKMAP) / BLKSIZE;
+  uint64_t tweak[2] = {blockno, 0}; 
 
   if (addr < (void *)(uintptr_t)DISKMAP || addr >= (void *)(uintptr_t)(DISKMAP + DISKSIZE))
     panic("flush_block of bad va %p", addr);
@@ -88,7 +103,12 @@ flush_block(void *addr) {
 		return;
   }
 
-  int r = ide_write(blockno * BLKSECTS, addr, BLKSECTS);
+  int r = xts_encrypt(addr, BLKSIZE, tmp_page, (unsigned char *)&tweak, &xts);
+  if (r != CRYPT_OK) {
+    panic("unable to encrypt block no: %d, addr: %p", blockno, addr);
+  }
+
+  r = ide_write(blockno * BLKSECTS, tmp_page, BLKSECTS);
   if (r < 0) {
 		panic("ide_write: %i", r);
   }
@@ -128,8 +148,43 @@ check_bc(void) {
 }
 
 void
+key_init() {
+  if (sys_get_disk_passwd(passwd) != 0) {
+    panic("Unable to get gisk password");
+  }
+  unsigned char salt[] = "OMGThisisJOSAAAABKjhkas";
+  unsigned char info[] = "OK, This is JOS disk encryption.";
+  int hash_id = register_hash(&sha256_desc);
+
+  hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
+
+//debug
+  cprintf("generated disk key is:\n");
+  for (int i = 0; i < sizeof(diskkey); i++) {
+    cprintf("%02x ", diskkey[i]);
+    if ((i + 1) % 32 == 0) {
+      cprintf("\n");
+    }
+  }
+  cprintf("\n");
+//debug end
+  memset(passwd, 0, sizeof(passwd));
+
+  int32_t cipher_id = register_cipher(&aes_desc);
+  if (cipher_id != CRYPT_OK) {
+    panic("Unable to register cipher");
+  }
+  int32_t res = xts_start(cipher_id, diskkey, diskkey + sizeof(diskkey)/2, sizeof(diskkey)/2, 0, &xts);
+  if (res != CRYPT_OK) {
+    panic("Unable to initialize cipher");
+  }
+}
+
+void
 bc_init(void) {
   struct Super super;
+
+  key_init();
   set_pgfault_handler(bc_pgfault);
   check_bc();
   

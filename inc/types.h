@@ -1,6 +1,9 @@
 #ifndef JOS_INC_TYPES_H
 #define JOS_INC_TYPES_H
 
+#ifndef _SYS_TYPES_H
+#define _SYS_TYPES_H
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -42,4 +45,5 @@ typedef int32_t off_t;
     (typeof(a))(ROUNDDOWN((uint64_t)(a) + __n - 1, __n)); \
   })
 
+#endif
 #endif /* !JOS_INC_TYPES_H */

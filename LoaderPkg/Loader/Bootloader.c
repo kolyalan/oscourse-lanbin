@@ -254,8 +254,7 @@ ShowPassword(
 STATIC
 EFI_STATUS
 ConsoleGetPassword(
-  OUT CHAR16  *Password,
-  IN  UINTN   Size
+  OUT UINT8  *Password
   ) 
 {
   EFI_STATUS                      Status;
@@ -266,13 +265,10 @@ ConsoleGetPassword(
   EFI_INPUT_KEY                   KeyInput;
   UINTN                           CharRead = 0;
 
-
   UINTN     Columns = 0;
   UINTN     Rows = 0;
   UINTN     CurColumn = 0;
   UINTN     CurRow = 0;
-
-  ASSERT(Size > 1);
 
   Status = HandleProtocolFallback (
     gST->ConsoleOutHandle,
@@ -293,6 +289,16 @@ ConsoleGetPassword(
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find text input protocol - %r\n", Status));
     return Status;
   }
+
+  /*
+    //for testing
+  Password[0] = 'h';
+
+  for (CharRead = 1; CharRead < MAX_PASSWORD_LEN; CharRead++) {
+    Password[CharRead] = '\0';
+  }
+  return EFI_SUCCESS;
+*/
 
   Status = TextOutput->SetMode(TextOutput, 2);
   if (EFI_ERROR (Status)) {
@@ -372,7 +378,7 @@ ConsoleGetPassword(
       if (CharRead <= 0) {
         continue;
       }
-      Password[--CharRead] = u'\0';
+      Password[--CharRead] = '\0';
       Status = ShowPassword(TextOutput, Columns, Rows, CharRead);
       if (EFI_ERROR (Status)) {
         DEBUG ((DEBUG_ERROR, "JOS: Cannot show password - %r\n", Status));
@@ -380,7 +386,7 @@ ConsoleGetPassword(
       }
       continue;
     }
-    if (CharRead >= Size - 2) {
+    if (CharRead >= MAX_PASSWORD_LEN - 2) {
       continue;
     }
     Password[CharRead] = KeyInput.UnicodeChar;
@@ -391,7 +397,9 @@ ConsoleGetPassword(
       return Status;
     }
   }
-  Password[CharRead] = '\0';
+  for (; CharRead < MAX_PASSWORD_LEN; CharRead++) {
+    Password[CharRead] = '\0';
+  }
 
   Status = TextOutput->ClearScreen(TextOutput);
   if (EFI_ERROR (Status)) {
@@ -1267,7 +1275,7 @@ UefiMain (
   LoaderParams->ACPIRoot     = (UINTN) AcpiFindRsdp ();
   LoaderParams->SelfVirtual  = (UINTN) LoaderParams;
 
-  Status = ConsoleGetPassword(LoaderParams->DiskPassword, MAX_PASSWORD_LEN);
+  Status = ConsoleGetPassword(LoaderParams->DiskPassword);
   if (EFI_ERROR(Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Failed to obtain password - %r\n", Status));
     FreePool (LoaderParams);

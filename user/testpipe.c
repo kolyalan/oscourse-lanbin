@@ -27,7 +27,7 @@ umain(int argc, char **argv) {
       cprintf("\npipe read closed properly\n");
     else
       cprintf("\ngot %d bytes: %s\n", i, buf);
-    exit();
+    exit(0);
   } else {
     cprintf("[%08x] pipereadeof close %d\n", thisenv->env_id, p[0]);
     close(p[0]);
@@ -53,7 +53,7 @@ umain(int argc, char **argv) {
         break;
     }
     cprintf("\npipe write closed properly\n");
-    exit();
+    exit(0);
   }
   close(p[0]);
   close(p[1]);

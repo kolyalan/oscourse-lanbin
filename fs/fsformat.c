@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <extlib/include/tomcrypt_ext.h>
 #undef off_t
 #undef bool
 
@@ -112,12 +113,59 @@ opendisk(const char *name) {
   memset(bitmap, 0xFF, nbitblocks * BLKSIZE);
 }
 
+unsigned char passwd[256];
+
+unsigned char diskkey[64];
+
+void encryptdisk(void) {
+  memset(passwd, 0, sizeof(passwd));
+  printf("Please, enter disk encryption password: \n");
+  scanf("%s", passwd);
+
+  unsigned char salt[] = "OMGThisisJOSAAAABKjhkas";
+  unsigned char info[] = "OK, This is JOS disk encryption.";
+  int hash_id = register_hash(&sha256_desc);
+
+  hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
+
+//debug
+  printf("generated disk key is:\n");
+  for (int i = 0; i < sizeof(diskkey); i++) {
+    printf("%02x ", diskkey[i]);
+    if ((i + 1) % 32 == 0) {
+      printf("\n");
+    }
+  }
+  printf("\n");
+//debug end
+  int cipher_id = register_cipher(&aes_desc);
+
+  symmetric_xts xts;
+  int res = xts_start(cipher_id, diskkey, diskkey + sizeof(diskkey)/2, sizeof(diskkey)/2, 0, &xts);
+  if (res != CRYPT_OK) {
+    panic("Error initialazing xts, %d", res);
+  }
+  unsigned long long tweak[2] = {0, 0};
+  for (unsigned char *ptr = (unsigned char *)diskmap; ptr < (unsigned char *)diskmap + nblocks * BLKSIZE; ptr += BLKSIZE) {
+    tweak[0] = (ptr - (unsigned char *)diskmap)/BLKSIZE;
+    tweak[1] = 0;
+    res = xts_encrypt(ptr, BLKSIZE, ptr, (unsigned char *)&tweak, &xts);
+    if (res != CRYPT_OK) {
+      panic("Error encrypting block");
+    }
+  }
+  xts_done(&xts);
+
+}
+
 void
 finishdisk(void) {
   int r, i;
 
   for (i = 0; i < blockof(diskpos); ++i)
     bitmap[i / 32] &= ~(1 << (i % 32));
+
+  encryptdisk();
 
   if ((r = msync(diskmap, nblocks * BLKSIZE, MS_SYNC)) < 0)
     panic("msync: %s", strerror(errno));

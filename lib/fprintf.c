@@ -13,6 +13,8 @@ struct printbuf {
   char buf[256];
 };
 
+int stderr = 0;
+
 static void
 writebuf(struct printbuf *b) {
   if (b->error > 0) {

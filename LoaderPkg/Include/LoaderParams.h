@@ -38,7 +38,7 @@ typedef struct {
   UINT32                   HorizontalResolution;
 
   // Disk password
-  CHAR16                   DiskPassword[MAX_PASSWORD_LEN];
+  UINT8                   DiskPassword[MAX_PASSWORD_LEN];
 
   ///
   /// Debug information.

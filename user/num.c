@@ -40,5 +40,5 @@ umain(int argc, char **argv) {
         close(f);
       }
     }
-  exit();
+  exit(0);
 }

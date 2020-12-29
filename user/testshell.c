@@ -33,7 +33,7 @@ umain(int argc, char **argv) {
     close(0);
     close(1);
     wait(r);
-    exit();
+    exit(0);
   }
   close(rfd);
   close(wfd);
@@ -78,5 +78,5 @@ wrong(int rfd, int kfd, int off) {
   while ((n = read(rfd, buf, sizeof buf - 1)) > 0)
     sys_cputs(buf, n);
   cprintf("===\n");
-  exit();
+  exit(0);
 }

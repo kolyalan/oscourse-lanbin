@@ -404,6 +404,19 @@ sys_gettime(void) {
   return gettime();
 }
 
+static int
+sys_get_disk_passwd(void *buf) {
+  if(curenv->env_type != ENV_TYPE_FS) {
+    return -E_INVAL;
+  }
+  if(buf == NULL) {
+    return -E_INVAL;
+  }
+  memcpy(buf, disk_passwd, sizeof(disk_passwd));
+  memset(disk_passwd, 0, sizeof(disk_passwd));
+  return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 uintptr_t
 syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5) {
@@ -457,6 +470,9 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
   }
   if (syscallno ==  SYS_gettime) {
     return sys_gettime();
+  }
+  if (syscallno ==  SYS_get_disk_passwd) {
+    return sys_get_disk_passwd((void*) a1);
   }
   return -E_INVAL;
 }

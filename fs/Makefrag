@@ -6,6 +6,8 @@ FSOFILES := 		$(OBJDIR)/fs/ide.o \
 			$(OBJDIR)/fs/fs.o \
 			$(OBJDIR)/fs/serv.o \
 			$(OBJDIR)/fs/test.o \
+			$(OBJDIR)/lib/fprintf.o \
+			$(OBJDIR)/lib/malloc.o
 
 FSIMGTXTFILES :=	fs/newmotd \
 			fs/motd \
@@ -46,14 +48,14 @@ $(OBJDIR)/fs/fs: $(FSOFILES) $(OBJDIR)/lib/entry.o $(OBJDIR)/lib/libjos.a $(USER
 	$(V)mkdir -p $(@D)
 	$(V)$(LD) -o $@ $(ULDFLAGS) $(LDFLAGS) $(USER_SAN_LDFLAGS) -nostdlib \
 		$(OBJDIR)/lib/entry.o $(FSOFILES) $(USER_EXTRA_OBJFILES) \
-		-L$(OBJDIR)/lib -ljos $(GCC_LIB)
+		-L$(OBJDIR)/lib -ljos $(GCC_LIB) -Lextlib/lib -ltomcrypt
 	$(V)$(OBJDUMP) -S $@ >$@.asm
 
 # How to build the file system image
 $(OBJDIR)/fs/fsformat: fs/fsformat.c
 	@echo + mk $(OBJDIR)/fs/fsformat
 	$(V)mkdir -p $(@D)
-	$(V)$(NCC) $(NATIVE_CFLAGS) -o $(OBJDIR)/fs/fsformat fs/fsformat.c
+	$(V)$(NCC) $(NATIVE_CFLAGS) -o $(OBJDIR)/fs/fsformat fs/fsformat.c -Lextlib/lib -ltomcrypt
 
 $(OBJDIR)/fs/clean-fs.img: $(OBJDIR)/fs/fsformat $(FSIMGFILES)
 	@echo + mk $(OBJDIR)/fs/clean-fs.img

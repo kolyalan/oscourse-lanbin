@@ -9,7 +9,7 @@ umain(int argc, char **argv) {
   while (1) {
     buf = readline("> ");
     if (buf == 0)
-      exit();
+      exit(0);
     if (memcmp(buf, "free ", 5) == 0) {
       v = (void *)strtol(buf + 5, 0, 0);
       free(v);

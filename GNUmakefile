@@ -110,7 +110,7 @@ endif
 
 # Native commands
 NCC	:= gcc $(CC_VER) -pipe
-NATIVE_CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -I$(TOP) -MD -Wall
+NATIVE_CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -I$(TOP) -Iextlib/include -MD -Wall
 TAR	:= gtar
 PERL	:= perl
 
@@ -137,7 +137,7 @@ endif
 
 # Compiler flags
 # -fno-builtin is required to avoid refs to undefined functions in the kernel.
-CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -fno-builtin -I$(TOP) -MD
+CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -fno-builtin -I$(TOP) -Iextlib/include -MD -DLTC_NO_FILE
 ifeq ($(D),1)
 CFLAGS += -O0
 else
@@ -151,7 +151,7 @@ CFLAGS += -Wall -Wformat=2 -Wno-unused-function -Werror -g -gpubnames
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 CFLAGS += -DUPAGES_SIZE=$(UPAGES_SIZE)  -DFBUFF_SIZE=$(FBUFF_SIZE)
 CFLAGS += $(EXTRA_CFLAGS)
-CFLAGS += -mno-sse -mno-sse2 -mno-mmx
+CFLAGS += -mno-sse2 -mno-mmx
 
 
 KERN_SAN_CFLAGS :=

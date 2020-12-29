@@ -31,7 +31,7 @@ again:
       case 'w': // Add an argument
         if (argc == MAXARGS) {
           cprintf("too many arguments\n");
-          exit();
+          exit(0);
         }
         argv[argc++] = t;
         break;
@@ -40,7 +40,7 @@ again:
         // Grab the filename from the argument list
         if (gettoken(0, &t) != 'w') {
           cprintf("syntax error: < not followed by word\n");
-          exit();
+          exit(0);
         }
         // Open 't' for reading as file descriptor 0
         // (which environments use as standard input).
@@ -53,7 +53,7 @@ again:
         // LAB 11: Your code here.
         if ((fd = open(t, O_RDONLY)) < 0) {
           cprintf("open %s for read: %i", t, fd);
-          exit();
+          exit(0);
         }
         if (fd != 0) {
           dup(fd, 0);
@@ -65,11 +65,11 @@ again:
         // Grab the filename from the argument list
         if (gettoken(0, &t) != 'w') {
           cprintf("syntax error: > not followed by word\n");
-          exit();
+          exit(0);
         }
         if ((fd = open(t, O_WRONLY | O_CREAT | O_TRUNC)) < 0) {
           cprintf("open %s for write: %i", t, fd);
-          exit();
+          exit(0);
         }
         if (fd != 1) {
           dup(fd, 1);
@@ -80,13 +80,13 @@ again:
       case '|': // Pipe
         if ((r = pipe(p)) < 0) {
           cprintf("pipe: %i", r);
-          exit();
+          exit(0);
         }
         if (debug)
           cprintf("PIPE: %d %d\n", p[0], p[1]);
         if ((r = fork()) < 0) {
           cprintf("fork: %i", r);
-          exit();
+          exit(0);
         }
         if (r == 0) {
           if (p[0] != 0) {
@@ -170,7 +170,7 @@ runit:
   }
 
   // Done!
-  exit();
+  exit(0);
 }
 
 // Get the next token from string s.
@@ -250,7 +250,7 @@ gettoken(char *s, char **p1) {
 void
 usage(void) {
   cprintf("usage: sh [-dix] [command-file]\n");
-  exit();
+  exit(0);
 }
 
 void
@@ -293,7 +293,7 @@ umain(int argc, char **argv) {
     if (buf == NULL) {
       if (debug)
         cprintf("EXITING\n");
-      exit(); // end of file
+      exit(0); // end of file
     }
     if (debug)
       cprintf("LINE: %s\n", buf);
@@ -309,7 +309,7 @@ umain(int argc, char **argv) {
       cprintf("FORK: %d\n", r);
     if (r == 0) {
       runcmd(buf);
-      exit();
+      exit(0);
     } else
       wait(r);
   }

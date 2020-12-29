@@ -36,7 +36,7 @@ umain(int argc, char **argv) {
     for (i = 0; i < max; i++) {
       if (pipeisclosed(p[0])) {
         cprintf("RACE: pipe appears closed\n");
-        exit();
+        exit(0);
       }
       sys_yield();
     }

@@ -41,6 +41,6 @@ libmain(int argc, char **argv) {
 #ifdef JOS_PROG
   sys_exit();
 #else
-  exit();
+  exit(0);
 #endif
 }

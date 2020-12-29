@@ -113,3 +113,8 @@ int
 sys_gettime(void) {
   return syscall(SYS_gettime, 0, 0, 0, 0, 0, 0);
 }
+
+int
+sys_get_disk_passwd(void *buf) {
+  return syscall(SYS_get_disk_passwd, 0, (uint64_t)buf, 0, 0, 0, 0);
+}

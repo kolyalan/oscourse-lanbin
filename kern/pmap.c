@@ -37,6 +37,8 @@ EFI_MEMORY_DESCRIPTOR *mmap_base = NULL;
 EFI_MEMORY_DESCRIPTOR *mmap_end  = NULL;
 size_t mem_map_size              = 0;
 
+uint8_t disk_passwd[256];
+
 // --------------------------------------------------------------
 // Detect machine's physical memory setup.
 // --------------------------------------------------------------
@@ -235,6 +237,9 @@ mem_init(void) {
 
   // Remove this line when you're ready to test this function.
   // panic("mem_init: This function is not finished\n");
+
+  memcpy(disk_passwd, uefi_lp->DiskPassword, sizeof(disk_passwd));
+  memset(uefi_lp->DiskPassword, 0, sizeof(uefi_lp->DiskPassword));
 
   //////////////////////////////////////////////////////////////////////
   // create initial page directory.
