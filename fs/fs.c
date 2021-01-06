@@ -14,7 +14,7 @@ uint32_t *bitmap;    // bitmap blocks mapped in memory
 void
 check_super(void) {
   if (super->s_magic != FS_MAGIC)
-    panic("bad file system magic number");
+    panic("bad file system magic number. Possibly incorrect password");
 
   if (super->s_nblocks > DISKSIZE / BLKSIZE)
     panic("file system is too large");

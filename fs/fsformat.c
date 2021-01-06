@@ -128,16 +128,6 @@ void encryptdisk(void) {
 
   hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
 
-//debug
-  printf("generated disk key is:\n");
-  for (int i = 0; i < sizeof(diskkey); i++) {
-    printf("%02x ", diskkey[i]);
-    if ((i + 1) % 32 == 0) {
-      printf("\n");
-    }
-  }
-  printf("\n");
-//debug end
   int cipher_id = register_cipher(&aes_desc);
 
   symmetric_xts xts;

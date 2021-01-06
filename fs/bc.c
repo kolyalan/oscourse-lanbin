@@ -158,16 +158,6 @@ key_init() {
 
   hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
 
-//debug
-  cprintf("generated disk key is:\n");
-  for (int i = 0; i < sizeof(diskkey); i++) {
-    cprintf("%02x ", diskkey[i]);
-    if ((i + 1) % 32 == 0) {
-      cprintf("\n");
-    }
-  }
-  cprintf("\n");
-//debug end
   memset(passwd, 0, sizeof(passwd));
 
   int32_t cipher_id = register_cipher(&aes_desc);
