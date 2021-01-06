@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/random.h>
 #include <extlib/include/tomcrypt_ext.h>
 #undef off_t
 #undef bool
@@ -120,13 +121,27 @@ unsigned char diskkey[64];
 void encryptdisk(void) {
   memset(passwd, 0, sizeof(passwd));
   printf("Please, enter disk encryption password: \n");
-  scanf("%s", passwd);
+  if (fgets((char *) passwd, sizeof(passwd), stdin) == NULL) {
+    printf("Error occured during input");
+    exit(1);
+  }
+  int f = 0;
+  for (int i = 0; i < sizeof(passwd); i++) {
+    if (passwd[i] == 0 && passwd[i-1] == '\n') {
+      passwd[i-1] = 0;
+      f = 1;
+    }
+  }
+  if (!f) {
+    printf("Password too long. Maximum password length is 255 symbols\n");
+    exit(1);
+  }
 
-  unsigned char salt[] = "OMGThisisJOSAAAABKjhkas";
+  getrandom(diskmap, BLKSIZE, 0);
   unsigned char info[] = "OK, This is JOS disk encryption.";
   int hash_id = register_hash(&sha256_desc);
 
-  hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
+  hkdf(hash_id, (unsigned char *)diskmap, BLKSIZE, info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
 
   int cipher_id = register_cipher(&aes_desc);
 
@@ -136,7 +151,7 @@ void encryptdisk(void) {
     panic("Error initialazing xts, %d", res);
   }
   unsigned long long tweak[2] = {0, 0};
-  for (unsigned char *ptr = (unsigned char *)diskmap; ptr < (unsigned char *)diskmap + nblocks * BLKSIZE; ptr += BLKSIZE) {
+  for (unsigned char *ptr = (unsigned char *)diskmap + BLKSIZE; ptr < (unsigned char *)diskmap + nblocks * BLKSIZE; ptr += BLKSIZE) {
     tweak[0] = (ptr - (unsigned char *)diskmap)/BLKSIZE;
     tweak[1] = 0;
     res = xts_encrypt(ptr, BLKSIZE, ptr, (unsigned char *)&tweak, &xts);

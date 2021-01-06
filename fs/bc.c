@@ -152,11 +152,15 @@ key_init() {
   if (sys_get_disk_passwd(passwd) != 0) {
     panic("Unable to get gisk password");
   }
-  unsigned char salt[] = "OMGThisisJOSAAAABKjhkas";
+
+  int r = ide_read(0, tmp_page, BLKSECTS);
+	if (r < 0) {
+		panic("ide_read: %i", r);
+  }
   unsigned char info[] = "OK, This is JOS disk encryption.";
   int hash_id = register_hash(&sha256_desc);
 
-  hkdf(hash_id, salt, sizeof(salt), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
+  hkdf(hash_id, tmp_page, sizeof(tmp_page), info, sizeof(info), passwd, sizeof(passwd), diskkey, sizeof(diskkey));
 
   memset(passwd, 0, sizeof(passwd));
 

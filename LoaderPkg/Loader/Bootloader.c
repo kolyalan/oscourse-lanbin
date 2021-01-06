@@ -289,12 +289,15 @@ ConsoleGetPassword(
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find text input protocol - %r\n", Status));
     return Status;
   }
-
-  /*
-    //for testing
+/*
+  //for testing
   Password[0] = 'h';
+  Password[1] = 'e';
+  Password[2] = 'l';
+  Password[3] = 'l';
+  Password[4] = 'o';
 
-  for (CharRead = 1; CharRead < MAX_PASSWORD_LEN; CharRead++) {
+  for (CharRead = 5; CharRead < MAX_PASSWORD_LEN; CharRead++) {
     Password[CharRead] = '\0';
   }
   return EFI_SUCCESS;
