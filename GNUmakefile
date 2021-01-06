@@ -319,7 +319,8 @@ else
 	QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,if=ide
 endif
 IMAGES += $(OBJDIR)/fs/fs.img
-QEMUOPTS += -pflash $(OVMF_FIRMWARE)
+QEMUOPTS += -bios $(OVMF_FIRMWARE)
+QEMUOPTS += -pflash $(OVMF_FIRMWARE) -boot menu=on
 # QEMUOPTS += -debugcon file:$(UEFIDIR)/debug.log -global isa-debugcon.iobase=0x402
 
 define POST_CHECKOUT
