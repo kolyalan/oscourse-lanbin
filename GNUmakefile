@@ -23,6 +23,7 @@ JOS_LOADER_DEPS += LoaderPkg/Loader/X64/*.c
 JOS_BOOTER := BOOTX64.efi
 endif
 JOS_ESP := LoaderPkg/ESP
+JOS_KEYS := LoaderPkg/keys
 
 # Run 'make V=1' to turn on verbose commands, or 'make V=0' to turn them off.
 ifeq ($(V),1)
@@ -363,9 +364,30 @@ $(JOS_ESP)/EFI/BOOT/kernel: $(OBJDIR)/kern/kernel
 	mkdir -p $(JOS_ESP)/EFI/BOOT
 	cp $(OBJDIR)/kern/kernel $(JOS_ESP)/EFI/BOOT/kernel
 
-$(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER): $(JOS_LOADER)
+$(JOS_KEYS):
+	mkdir -p $(JOS_KEYS)
+	openssl req -new -x509 -newkey rsa:2048 -sha256 -days 365 -subj "/CN=Platform Key" -keyout $(JOS_KEYS)/PK.key -out $(JOS_KEYS)/PK.pem
+	openssl req -new -x509 -newkey rsa:2048 -sha256 -days 365 -subj "/CN=Key Exchange Key" -keyout $(JOS_KEYS)/KEK.key -out $(JOS_KEYS)/KEK.pem
+	openssl req -new -x509 -newkey rsa:2048 -sha256 -days 365 -subj "/CN=Image Signing Key" -keyout $(JOS_KEYS)/ISK.key -out $(JOS_KEYS)/ISK.pem
+	cert-to-efi-sig-list -g "$(uuidgen)" $(JOS_KEYS)/PK.pem $(JOS_KEYS)/PK.esl
+	cert-to-efi-sig-list -g "$(uuidgen)" $(JOS_KEYS)/KEK.pem $(JOS_KEYS)/KEK.esl
+	cert-to-efi-sig-list -g "$(uuidgen)" $(JOS_KEYS)/ISK.pem $(JOS_KEYS)/ISK.esl
+	sign-efi-sig-list -k $(JOS_KEYS)/PK.key -c $(JOS_KEYS)/PK.pem PK $(JOS_KEYS)/PK.esl $(JOS_KEYS)/PK.auth
+	sign-efi-sig-list -k $(JOS_KEYS)/PK.key -c $(JOS_KEYS)/PK.pem KEK $(JOS_KEYS)/KEK.esl $(JOS_KEYS)/KEK.auth
+	sign-efi-sig-list -k $(JOS_KEYS)/KEK.key -c $(JOS_KEYS)/KEK.pem db $(JOS_KEYS)/ISK.esl $(JOS_KEYS)/db.auth
+	openssl x509 -in $(JOS_KEYS)/KEK.pem -inform pem -out $(JOS_KEYS)/KEK.der -outform der
+	openssl x509 -in $(JOS_KEYS)/PK.pem -inform pem -out $(JOS_KEYS)/PK.der -outform der
+	openssl x509 -in $(JOS_KEYS)/ISK.pem -inform pem -out $(JOS_KEYS)/db.der -outform der
+
+
+$(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER): $(JOS_LOADER) $(JOS_KEYS)
 	mkdir -p $(JOS_ESP)/EFI/BOOT
 	cp $(JOS_LOADER) $(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER)
+	cp $(JOS_KEYS)/PK.der $(JOS_ESP)/EFI/BOOT/PK.der
+	cp $(JOS_KEYS)/KEK.der $(JOS_ESP)/EFI/BOOT/KEK.der
+	cp $(JOS_KEYS)/db.auth $(JOS_ESP)/EFI/BOOT/db.auth
+	sbsign --key $(JOS_KEYS)/ISK.key --cert $(JOS_KEYS)/ISK.pem --output $(JOS_ESP)/EFI/BOOT/signed_bootx64.efi $(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER)
+	
 	# cp $(JOSLOADER)/Loader.debug $(UEFIDIR)/EFI/BOOT/BOOTIA32.DEBUG
 
 pre-qemu: .gdbinit
@@ -419,7 +441,7 @@ realclean: clean
 		qemu.pcap $(wildcard qemu.pcap.*)
 
 distclean: realclean
-	rm -f .git/hooks/pre-commit .git/hooks/post-checkout $(OVMF_FIRMWARE) LoaderPkg/efibuild.sh
+	rm -f .git/hooks/pre-commit .git/hooks/post-checkout $(OVMF_FIRMWARE) LoaderPkg/efibuild.sh $(JOS_KEYS)
 
 ifneq ($(V),@)
 GRADEFLAGS += -v
