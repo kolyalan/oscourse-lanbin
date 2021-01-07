@@ -313,7 +313,8 @@ QEMUOPTS = -hda fat:rw:$(JOS_ESP) -serial mon:stdio -gdb tcp::$(GDBPORT)
 QEMUOPTS += -m 8192M
 
 QEMUOPTS += $(shell if $(QEMU) -display none -help | grep -q '^-D '; then echo '-D qemu.log'; fi)
-IMAGES = $(OVMF_FIRMWARE) $(JOS_LOADER) $(OBJDIR)/kern/kernel $(JOS_ESP)/EFI/BOOT/kernel $(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER)
+IMAGES = $(OVMF_FIRMWARE) $(JOS_LOADER) $(OBJDIR)/kern/kernel $(OBJDIR)/kern/kernel_signed
+IMAGES += $(JOS_ESP)/EFI/BOOT/kernel $(JOS_ESP)/EFI/BOOT/kernel_signed $(JOS_ESP)/EFI/BOOT/$(JOS_BOOTER)
 ifeq ($(CONFIG_SNAPSHOT),y)
 	QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,if=ide,snapshot=on
 else
@@ -363,6 +364,10 @@ $(JOS_LOADER): $(OVMF_FIRMWARE) $(JOS_LOADER_DEPS)
 $(JOS_ESP)/EFI/BOOT/kernel: $(OBJDIR)/kern/kernel
 	mkdir -p $(JOS_ESP)/EFI/BOOT
 	cp $(OBJDIR)/kern/kernel $(JOS_ESP)/EFI/BOOT/kernel
+
+$(JOS_ESP)/EFI/BOOT/kernel_signed: $(OBJDIR)/kern/kernel_signed
+	mkdir -p $(JOS_ESP)/EFI/BOOT
+	cp $(OBJDIR)/kern/kernel_signed $(JOS_ESP)/EFI/BOOT/kernel_signed
 
 $(JOS_KEYS):
 	mkdir -p $(JOS_KEYS)

@@ -207,4 +207,14 @@ $(OBJDIR)/kern/kernel: $(KERN_OBJFILES) $(KERN_BINFILES) kern/kernel.ld \
 	$(V)$(OBJDUMP) -S $@ > $@.asm
 	$(V)$(NM) -n $@ > $@.sym
 
+$(OBJDIR)/kern/crypt: kern/crypt.c
+	@echo + mk $(OBJDIR)/kern/crypt
+	$(V)mkdir -p $(@D)
+	$(V)$(NCC) $(NATIVE_CFLAGS) -o $(OBJDIR)/kern/crypt kern/crypt.c -Lextlib/lib -ltomcrypt
+
+$(OBJDIR)/kern/kernel_signed: $(OBJDIR)/kern/crypt
+	@echo + mk $(OBJDIR)/kern/kernel_signed
+	$(V)mkdir -p $(@D)
+	$(V)$(OBJDIR)/kern/crypt 
+
 all: $(OBJDIR)/kern/kernel
