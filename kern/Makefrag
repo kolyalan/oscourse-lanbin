@@ -212,7 +212,7 @@ $(OBJDIR)/kern/crypt: kern/crypt.c
 	$(V)mkdir -p $(@D)
 	$(V)$(NCC) $(NATIVE_CFLAGS) -o $(OBJDIR)/kern/crypt kern/crypt.c -Lextlib/lib -ltomcrypt
 
-$(OBJDIR)/kern/kernel_signed: $(OBJDIR)/kern/crypt
+LoaderPkg/Loader/hash.c: $(OBJDIR)/kern/crypt
 	@echo + mk $(OBJDIR)/kern/kernel_signed
 	$(V)mkdir -p $(@D)
 	$(V)$(OBJDIR)/kern/crypt 

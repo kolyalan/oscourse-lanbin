@@ -26,6 +26,7 @@
 /LoaderPkg/Binaries
 /LoaderPkg/UDK
 /LoaderPkg/ESP
+/LoaderPkg/Loader/hash.c
 /LoaderPkg/efibuild.sh
 /LoaderPkg/mtoc-mac64.sha256
 .idea/*

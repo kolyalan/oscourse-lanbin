@@ -28,10 +28,11 @@
 
 #include <LoaderParams.h>
 
+extern UINT8 Hash[];
 ///
 /// Kernel path.
 ///
-#define KERNEL_PATH L"\\EFI\\BOOT\\kernel_signed"
+#define KERNEL_PATH L"\\EFI\\BOOT\\kernel"
 #define HASH_SIZE SHA256_DIGEST_SIZE
 
 /**

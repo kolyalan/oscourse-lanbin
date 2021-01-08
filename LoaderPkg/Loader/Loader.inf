@@ -20,6 +20,7 @@
   Bootloader.c
   VirtualMemory.c
   VirtualMemory.h
+  hash.c
 
 [Sources.Ia32]
   Ia32/Trampoline.c

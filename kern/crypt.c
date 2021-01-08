@@ -8,8 +8,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
-unsigned char *kernmap1, *kernmap2;
-off_t kernsize, hashsize = 32;
+unsigned char *kernmap1;
+off_t kernsize, keysize, hashsize = 32;
 
 void
 panic(const char *fmt, ...) {
@@ -24,28 +24,18 @@ panic(const char *fmt, ...) {
 
 void
 openkern(const char *name) {
-  int r, kernfd1, kernfd2;
+  int kernfd1;
   struct stat buf;
-  char *new_name = "obj/kern/kernel_signed";
   if ((kernfd1 = open(name, O_RDWR | O_CREAT, 0666)) < 0)
     panic("open %s: %s", name, strerror(errno));
-  if ((kernfd2 = open(new_name, O_RDWR | O_CREAT, 0666)) < 0)
-    panic("open %s: %s", new_name, strerror(errno));
   if (fstat(kernfd1, &buf))
     panic("Bad call\n");
   kernsize = buf.st_size;
-  if ((r = ftruncate(kernfd2, 0)) < 0 || (r = ftruncate(kernfd2, kernsize + hashsize)) < 0)
-    panic("truncate %s: %s", new_name, strerror(errno));
 
   if ((kernmap1 = mmap(NULL, kernsize, PROT_READ | PROT_WRITE,
                       MAP_SHARED, kernfd1, 0)) == MAP_FAILED)
     panic("mmap %s: %s", name, strerror(errno));
-  if ((kernmap2 = mmap(NULL, kernsize + hashsize, PROT_READ | PROT_WRITE,
-                      MAP_SHARED, kernfd2, 0)) == MAP_FAILED)
-    panic("mmap %s: %s", name, strerror(errno));
   close(kernfd1);
-  close(kernfd2);
-  memcpy(kernmap2 + hashsize, kernmap1, kernsize);
 }
 
 void 
@@ -56,19 +46,15 @@ signkern() {
   if (hash_memory(hash_id, kernmap1, kernsize, buf, &len) != CRYPT_OK) {
     panic("hash_memory error\n");
   }
-  memcpy(kernmap2, buf, hashsize);
+
+  FILE *out = fopen("LoaderPkg/Loader/hash.c", "w");
+  fprintf(out, "UINT8 Hash[32]={");
   for (int i = 0; i < sizeof(buf); ++i) {
-    printf("%02x ", buf[i]);
+    fprintf(out, "0x%02x, ", buf[i]);
   }
+  fprintf(out, "};\n");
+
 }
-
-
-void
-finishkern(void) {
-  if ((msync(kernmap2, kernsize + hashsize, MS_SYNC)) < 0)
-    panic("msync: %s", strerror(errno));
-}
-
 
 
 int main(void)
@@ -76,5 +62,4 @@ int main(void)
   char *name = "obj/kern/kernel";
   openkern(name);
   signkern();
-  finishkern();
 }
