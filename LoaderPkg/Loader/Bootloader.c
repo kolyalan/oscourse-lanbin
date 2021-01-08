@@ -605,6 +605,7 @@ CheckedReadData (
   IN  EFI_FILE_PROTOCOL  *File,
   IN  UINTN              Offset,
   IN  UINTN              Size,
+  IN  BOOLEAN            SkipHash,
   OUT VOID               *Data
   )
 {
@@ -613,6 +614,10 @@ CheckedReadData (
 
   ASSERT (File != NULL);
   ASSERT (Data != NULL);
+
+  if (SkipHash) {
+    Offset += HASH_SIZE;
+  }
 
   Status = File->SetPosition (File, Offset);
   if (EFI_ERROR (Status)) {
@@ -668,6 +673,7 @@ CheckedReadString (
   IN  EFI_FILE_PROTOCOL  *File,
   IN  UINTN              Offset,
   IN  UINTN              Size,
+  IN  BOOLEAN            SkipHash,
   OUT CHAR8              *String
   )
 {
@@ -677,6 +683,10 @@ CheckedReadString (
   ASSERT (File != NULL);
   ASSERT (Size > 1);
   ASSERT (String != NULL);
+
+  if (SkipHash) {
+    Offset += HASH_SIZE;
+  }
 
   Status = File->SetPosition (File, Offset);
   if (EFI_ERROR (Status)) {
@@ -704,6 +714,93 @@ CheckedReadString (
   }
 
   String[ReadSize] = '\0';
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+CheckKernelFile (
+  IN EFI_FILE_PROTOCOL *KernelFile
+  )
+{
+  EFI_STATUS Status;
+  CHAR16 NameBuffer[50] = {0};
+  UINTN Sz = sizeof(NameBuffer)/2;
+  EFI_GUID Vendor_guid;
+  CHAR16 Need[] = u"db";
+  while((Status = gRT->GetNextVariableName(&Sz, NameBuffer, &Vendor_guid)) != EFI_NOT_FOUND) {
+    if (EFI_ERROR(Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Error getting variable name- %r size needed: %d\n", Status, Sz));
+      return Status;
+    }
+    if (!StrCmp(Need, NameBuffer)) {
+      break;
+    }
+    DEBUG ((DEBUG_INFO, "Variable name: %s\n", NameBuffer));
+    Sz = sizeof(NameBuffer);
+  }
+  if (Status == EFI_NOT_FOUND) {
+    DEBUG ((DEBUG_ERROR, "JOS: Certificate db was not found"));
+    return Status;
+  }
+  UINTN DataSize = 0;
+  gRT->GetVariable(NameBuffer, &Vendor_guid, NULL, &DataSize, NULL);
+  EFI_SIGNATURE_DATA * dbData = AllocateRuntimePool(DataSize);
+
+  gRT->GetVariable(NameBuffer, &Vendor_guid, NULL, &DataSize, dbData);
+  /*for (int i = 0; i < DataSize; i++) {
+    DEBUG((DEBUG_INFO, "%02x ", (char)((char*)dbData)[i]));
+  }*/
+  VOID * Context = AllocateRuntimePool(Sha256GetContextSize());
+  Sha256Init(Context);
+
+  UINTN infosz = sizeof(EFI_FILE_INFO) + 50;
+  EFI_FILE_INFO * info = AllocateRuntimePool(infosz);
+  Status = KernelFile->GetInfo(KernelFile, &gEfiFileInfoGuid, &infosz, info);
+  if (EFI_ERROR(Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Error getting kernel file info- %r\n needed buffer, %d", Status, infosz));
+    return Status;
+  }
+
+  UINTN BufSize = 1024;
+  VOID * Buffer = AllocateRuntimePool(BufSize);
+
+  for (int i = 0; i < info->FileSize - HASH_SIZE; i += BufSize) {
+    UINTN ReadSize = MIN(BufSize, info->FileSize - HASH_SIZE - i);
+    Status = CheckedReadData(KernelFile, i, ReadSize, 1, Buffer);
+    if(EFI_ERROR(Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: unable to read block %d of kernel file", i/BufSize));
+      return Status;
+    }
+    Sha256Update(Context, Buffer, ReadSize);
+  }
+
+  UINT8 Hash[SHA256_DIGEST_SIZE];
+  Sha256Final(Context, Hash);
+
+  UINT8 Signature[HASH_SIZE];
+  UINTN ReadSize = sizeof(Signature);
+  Status = CheckedReadData(KernelFile, 0, ReadSize, 0, Signature);
+  if(EFI_ERROR(Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: unable to read signature of kernel file"));
+    return Status;
+  }
+
+  BOOLEAN cmp = 0;
+  DEBUG ((DEBUG_INFO, "Hash: \n"));
+  for (int i = 0; i < sizeof(Hash); i++) {
+    if (Hash[i] != Signature[i]) {
+      cmp = 1;
+    }
+    DEBUG ((DEBUG_INFO, "%02x ", Hash[i]));
+  }
+  if (!cmp) {
+    DEBUG ((DEBUG_INFO, "Signature correct\n"));
+  }
+
+  FreePool(Buffer);
+  FreePool(Context);
+  FreePool(dbData);
   return EFI_SUCCESS;
 }
 
@@ -749,6 +846,13 @@ LoadKernel (
     return Status;
   }
 
+  Status = CheckKernelFile(KernelFile);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot check kernel file - %r\n", Status));
+    KernelFile->Close (KernelFile);
+    return Status;
+  }
+
   DEBUG ((DEBUG_INFO, "JOS: Loading kernel image...\n"));
 
   //
@@ -757,7 +861,7 @@ LoadKernel (
   // Secure Boot functionality will have to ensure this by checking the signature
   // or at least verifying the bounds.
   //
-  Status = CheckedReadData (KernelFile, 0, sizeof (ElfHeader), &ElfHeader);
+  Status = CheckedReadData (KernelFile, 0, sizeof (ElfHeader), 1, &ElfHeader);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot read kernel header - %r\n", Status));
     KernelFile->Close (KernelFile);
@@ -844,6 +948,7 @@ LoadKernel (
     KernelFile,
     ElfHeader.e_shoff,
     ElfHeader.e_shnum * sizeof (struct Secthdr),
+    1,
     Sections
     );
   if (EFI_ERROR (Status)) {
@@ -865,6 +970,7 @@ LoadKernel (
     KernelFile,
     ElfHeader.e_phoff,
     ElfHeader.e_phnum * sizeof (struct Proghdr),
+    1,
     ProgramHeaders
     );
   if (EFI_ERROR (Status)) {
@@ -905,6 +1011,7 @@ LoadKernel (
       KernelFile,
       StringOffset + Sections[Index].sh_name,
       sizeof (NameTemp),
+      1,
       NameTemp
       );
     if (EFI_ERROR (Status)) {
@@ -951,6 +1058,7 @@ LoadKernel (
           KernelFile,
           Sections[Index].sh_offset,
           Sections[Index].sh_size,
+          1,
           SectionData
           );
         if (EFI_ERROR (Status)) {
@@ -1022,6 +1130,7 @@ LoadKernel (
               KernelFile,
               ProgramHeaders[Index].p_offset,
               ProgramHeaders[Index].p_filesz,
+              1,
               (VOID *)(UINTN) ProgramHeaders[Index].p_pa
               );
             if (EFI_ERROR (Status)) {

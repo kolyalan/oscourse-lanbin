@@ -15,12 +15,14 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+#include <Library/BaseCryptLib.h>
 
 #include <Protocol/GraphicsOutput.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/SimpleTextIn.h>
 #include <Protocol/SimpleTextOut.h>
+#include <Guid/ImageAuthentication.h>
 
 #include "Elf64.h"
 
@@ -29,7 +31,8 @@
 ///
 /// Kernel path.
 ///
-#define KERNEL_PATH L"\\EFI\\BOOT\\kernel"
+#define KERNEL_PATH L"\\EFI\\BOOT\\kernel_signed"
+#define HASH_SIZE SHA256_DIGEST_SIZE
 
 /**
   Generate architecture-specific kernel call gate data.

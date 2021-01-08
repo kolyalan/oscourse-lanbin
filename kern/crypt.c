@@ -9,7 +9,7 @@
 #include <errno.h>
 
 unsigned char *kernmap1, *kernmap2;
-off_t kernsize, hashsize = 0;
+off_t kernsize, hashsize = 32;
 
 void
 panic(const char *fmt, ...) {
@@ -51,11 +51,12 @@ openkern(const char *name) {
 void 
 signkern() {
   int hash_id = register_hash(&sha256_desc);
-  unsigned char buf[32];
-  unsigned long len = 32;
+  unsigned char buf[hashsize];
+  unsigned long len = hashsize;
   if (hash_memory(hash_id, kernmap1, kernsize, buf, &len) != CRYPT_OK) {
     panic("hash_memory error\n");
   }
+  memcpy(kernmap2, buf, hashsize);
   for (int i = 0; i < sizeof(buf); ++i) {
     printf("%02x ", buf[i]);
   }
